@@ -75,6 +75,21 @@
     background:var(--panel-2); border:1px solid var(--border); border-radius:999px; color:var(--muted);
   }
   .chip i { width:6px; height:6px; border-radius:50%; background:var(--accent); font-style:normal; }
+  .chip .x { cursor:pointer; color:var(--faint); margin-left:2px; font-size:13px; line-height:1; }
+  .chip .x:hover { color:#ff8c7a; }
+
+  /* ---- model picker ---- */
+  .plist { margin-top:10px; max-height:320px; overflow-y:auto;
+           scrollbar-width:thin; scrollbar-color:var(--border-2) transparent; }
+  .mrow { display:flex; align-items:center; gap:10px; padding:6px 8px; cursor:pointer;
+          border-radius:7px; font-size:12.5px; }
+  .mrow:hover { background:var(--panel-2); }
+  .mrow .check { width:16px; color:var(--ok); flex:none; }
+  .mrow .mname { white-space:nowrap; }
+  .mrow .mid { color:var(--faint); font-size:11px; flex:1; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; }
+  .mrow .mprice { color:var(--accent); font-size:11px; flex:none; }
+  .mrow.on .mname { color:var(--accent); }
 
   /* ---- prompt box ---- */
   .prompt {
@@ -127,6 +142,12 @@
   }
   .card-body::-webkit-scrollbar-thumb:hover { background:var(--accent-d); background-clip:padding-box; }
   .card-body.err { color:#ff8c7a; }
+  .card-meta {
+    padding:8px 16px; border-top:1px solid var(--border); background:var(--panel-2);
+    color:var(--faint); font-size:11px; display:flex; gap:8px; min-height:30px; align-items:center;
+  }
+  .card-meta .price { color:var(--accent); margin-left:auto; }
+  .cost { color:var(--accent); font-variant-numeric:tabular-nums; }
   .loading { color:var(--muted); }
   .loading .blk { display:inline-block; width:8px; height:14px; background:var(--accent);
                   transform:translateY(2px); animation:blink 1s steps(1) infinite; }
@@ -157,6 +178,17 @@
   .brow .v { width:34px; text-align:right; color:var(--muted); font-size:12px; }
   .board .none { color:var(--faint); font-size:12px; }
 
+  /* ---- api key panel ---- */
+  .keyrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .keyrow input {
+    flex:1; min-width:240px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; padding:9px 12px; font:inherit; font-size:13px;
+  }
+  .keyrow input:focus { outline:none; border-color:var(--accent-d); }
+  .keynote { margin-top:10px; color:var(--faint); font-size:11.5px; line-height:1.5; }
+  .keynote a { color:var(--muted); }
+  .key-btn.haskey { color:var(--ok); border-color:var(--ok); }
+
   /* ---- saved prompts ---- */
   .prow { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid var(--border); }
   .prow:first-of-type { border-top:0; }
@@ -179,19 +211,46 @@
     <header>
       <span class="mark"><b>merge</b> model arena<span class="caret"></span></span>
       <span class="spacer"></span>
+      <span class="status cost" id="cost" title="total spend this session">$0.00000</span>
+      <button class="board-btn key-btn" id="keyBtn">🔑 key</button>
       <button class="board-btn" id="promptsBtn">📌 prompts</button>
       <button class="board-btn" id="boardBtn">🏆 board</button>
       <span class="dot" id="dot"></span>
       <span class="status" id="status">connecting…</span>
     </header>
 
+    <div class="board" id="keyPanel" hidden>
+      <h3>merge api key</h3>
+      <div class="keyrow">
+        <input id="keyInput" type="password" autocomplete="off" spellcheck="false"
+               placeholder="paste your Merge API key…" />
+        <button id="keySave">save</button>
+        <button id="keyClear">clear</button>
+      </div>
+      <div class="keynote">
+        Stored only in this browser (localStorage) and sent with each request —
+        the server never saves it. Don't have one? Get a key from your
+        <a href="https://app.merge.dev" target="_blank" rel="noopener">Merge dashboard</a>.
+      </div>
+    </div>
     <div class="board" id="prompts" hidden></div>
     <div class="board" id="board" hidden></div>
+    <div class="board" id="picker" hidden>
+      <h3>model picker · <span id="pickCount">0</span> in play
+        <span class="reset" id="pickClose">close</span></h3>
+      <div class="keyrow">
+        <input id="pickSearch" type="text" autocomplete="off" spellcheck="false"
+               placeholder="search models… (click to add / remove)" />
+      </div>
+      <div class="plist" id="pickList"></div>
+    </div>
 
     <div class="controls">
       <span class="lbl">models</span>
       <input class="num" id="count" type="number" min="1" max="6" value="3" />
       <button class="roll" id="roll">↻ roll</button>
+      <button id="pickBtn">☰ pick</button>
+      <button id="allFable">🎭 6× Fable 5</button>
       <div class="chips" id="chips"></div>
     </div>
 
@@ -225,12 +284,63 @@ let inPlay = [];           // [{id, name}]
 
 const LB_KEY = "merge.arena.leaderboard";
 let votes = loadVotes();   // { id: {name, votes} }
+let sessionCost = 0;       // running $ spend since page load
+
+function addCost(c) {
+  if (typeof c !== "number") return;
+  sessionCost += c;
+  document.getElementById("cost").textContent = "$" + sessionCost.toFixed(5);
+}
 
 const $ = (id) => document.getElementById(id);
 const dot = $("dot"), status = $("status"), chips = $("chips"),
       input = $("input"), send = $("send"), grid = $("grid"), empty = $("empty"),
       board = $("board"), boardBtn = $("boardBtn"),
-      promptsPanel = $("prompts"), promptsBtn = $("promptsBtn"), save = $("save");
+      promptsPanel = $("prompts"), promptsBtn = $("promptsBtn"), save = $("save"),
+      keyPanel = $("keyPanel"), keyBtn = $("keyBtn"),
+      keyInput = $("keyInput"), keySave = $("keySave"), keyClear = $("keyClear"),
+      picker = $("picker"), pickBtn = $("pickBtn"), pickSearch = $("pickSearch"),
+      pickList = $("pickList"), pickCount = $("pickCount");
+
+function hidePanels() {
+  board.hidden = promptsPanel.hidden = keyPanel.hidden = picker.hidden = true;
+}
+
+/* ---- bring-your-own API key (persisted in localStorage) ---- */
+const KEY_KEY = "merge.arena.apikey";
+let apiKey = localStorage.getItem(KEY_KEY) || "";
+
+function keyHeaders(extra = {}) {
+  return apiKey ? { ...extra, "X-Merge-Key": apiKey } : extra;
+}
+function refreshKeyBtn() {
+  keyBtn.classList.toggle("haskey", !!apiKey);
+  keyBtn.textContent = apiKey ? "🔑 key ✓" : "🔑 key";
+}
+function openKeyPanel() {
+  hidePanels();
+  keyPanel.hidden = false;
+  keyInput.value = apiKey;
+  keyInput.focus();
+}
+keyBtn.addEventListener("click", () => {
+  if (keyPanel.hidden) openKeyPanel(); else keyPanel.hidden = true;
+});
+keySave.addEventListener("click", () => {
+  apiKey = keyInput.value.trim();
+  if (apiKey) localStorage.setItem(KEY_KEY, apiKey);
+  else localStorage.removeItem(KEY_KEY);
+  refreshKeyBtn();
+  keyPanel.hidden = true;
+  init();   // reconnect with the new key
+});
+keyClear.addEventListener("click", () => {
+  apiKey = ""; keyInput.value = "";
+  localStorage.removeItem(KEY_KEY);
+  refreshKeyBtn();
+  init();
+});
+keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") keySave.click(); });
 
 /* ---- leaderboard (persisted in localStorage) ---- */
 function loadVotes() {
@@ -271,8 +381,9 @@ function renderBoard() {
 }
 
 boardBtn.addEventListener("click", () => {
-  board.hidden = !board.hidden;
-  if (!board.hidden) { renderBoard(); promptsPanel.hidden = true; }
+  const open = board.hidden;
+  hidePanels();
+  if (open) { board.hidden = false; renderBoard(); }
 });
 
 /* ---- saved prompts (persisted in localStorage) ---- */
@@ -326,8 +437,9 @@ function renderPrompts() {
 }
 
 promptsBtn.addEventListener("click", () => {
-  promptsPanel.hidden = !promptsPanel.hidden;
-  if (!promptsPanel.hidden) { renderPrompts(); board.hidden = true; }
+  const open = promptsPanel.hidden;
+  hidePanels();
+  if (open) { promptsPanel.hidden = false; renderPrompts(); }
 });
 
 save.addEventListener("click", () => {
@@ -348,12 +460,21 @@ function pick(n) {
 
 function renderChips() {
   chips.innerHTML = "";
-  inPlay.forEach(m => {
+  inPlay.forEach((m, i) => {
     const c = document.createElement("span");
     c.className = "chip";
-    c.innerHTML = `<i></i>${m.name}`;
+    const dotEl = document.createElement("i");
+    const x = document.createElement("span");
+    x.className = "x"; x.textContent = "×"; x.title = "remove";
+    x.addEventListener("click", () => {
+      inPlay.splice(i, 1);
+      renderChips();
+      if (!picker.hidden) renderPickList();
+    });
+    c.append(dotEl, document.createTextNode(m.name), x);
     chips.appendChild(c);
   });
+  pickCount.textContent = inPlay.length;
 }
 
 function roll() {
@@ -361,7 +482,65 @@ function roll() {
   const n = parseInt($("count").value, 10) || 3;
   inPlay = pick(n);
   renderChips();
+  if (!picker.hidden) renderPickList();
 }
+
+/* ---- model picker ---- */
+const MAX_IN_PLAY = 8;
+
+function renderPickList() {
+  const q = pickSearch.value.trim().toLowerCase();
+  const selected = new Set(inPlay.map(m => m.id));
+  const rows = CATALOG.filter(m =>
+    !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+  pickList.innerHTML = "";
+  rows.forEach(m => {
+    const row = document.createElement("div");
+    row.className = "mrow" + (selected.has(m.id) ? " on" : "");
+    const check = document.createElement("span");
+    check.className = "check";
+    check.textContent = selected.has(m.id) ? "✓" : "";
+    const name = document.createElement("span");
+    name.className = "mname"; name.textContent = m.name;
+    const id = document.createElement("span");
+    id.className = "mid"; id.textContent = m.id;
+    const price = document.createElement("span");
+    price.className = "mprice";
+    if (m.price) price.textContent = `$${m.price.in}/$${m.price.out} per M`;
+    row.append(check, name, id, price);
+    row.addEventListener("click", () => {
+      if (selected.has(m.id)) {
+        inPlay = inPlay.filter(p => p.id !== m.id);
+      } else if (inPlay.length < MAX_IN_PLAY) {
+        inPlay.push(m);
+      } else {
+        status.textContent = `max ${MAX_IN_PLAY} models in play`;
+        return;
+      }
+      renderChips();
+      renderPickList();
+    });
+    pickList.appendChild(row);
+  });
+  if (!rows.length) {
+    const none = document.createElement("div");
+    none.className = "none";
+    none.textContent = "no models match";
+    pickList.appendChild(none);
+  }
+}
+
+pickBtn.addEventListener("click", () => {
+  const open = picker.hidden;
+  hidePanels();
+  if (open) {
+    picker.hidden = false;
+    renderPickList();
+    pickSearch.focus();
+  }
+});
+$("pickClose").addEventListener("click", () => { picker.hidden = true; });
+pickSearch.addEventListener("input", renderPickList);
 
 function autosize() {
   input.style.height = "auto";
@@ -380,7 +559,8 @@ function cardFor(m, idx) {
       <button class="up" disabled>👍 like</button>
       <button class="copy" disabled>copy</button>
     </div>
-    <div class="card-body loading"><span class="blk"></span> thinking…</div>`;
+    <div class="card-body loading"><span class="blk"></span> thinking…</div>
+    <div class="card-meta"></div>`;
   return card;
 }
 
@@ -405,6 +585,48 @@ function attachCopy(btn, getText) {
   });
 }
 
+async function streamOne(m, messages, body) {
+  const res = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: keyHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ model: m.id, messages }),
+  });
+
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => ({}));
+    if (data.need_key) openKeyPanel();
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+
+  // Read the SSE stream: {text} snapshots, then {done, usage, cost}.
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "", out = "", usage = {}, cost = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const chunk = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const data = JSON.parse(line.slice(6));
+        if (data.error) { if (data.need_key) openKeyPanel(); throw new Error(data.error); }
+        if (typeof data.text === "string") {
+          out = data.text;
+          body.classList.remove("loading");
+          body.textContent = out;
+          body.scrollTop = body.scrollHeight;   // follow the newest tokens
+        }
+        if (data.done) { usage = data.usage || {}; cost = data.cost; }
+      }
+    }
+  }
+  return { out: out.trim() || "(no response)", usage, cost };
+}
+
 async function run() {
   const text = input.value.trim();
   if (!text || !inPlay.length) return;
@@ -415,28 +637,26 @@ async function run() {
 
   const messages = [{ role: "system", content: SYSTEM }, { role: "user", content: text }];
 
-  inPlay.forEach((m, idx) => {
+  const runs = inPlay.map((m, idx) => {
     const card = cardFor(m, idx);
     grid.appendChild(card);
     const body = card.querySelector(".card-body");
     const copy = card.querySelector(".copy");
     const up = card.querySelector(".up");
+    const meta = card.querySelector(".card-meta");
 
-    fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: m.id, messages }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) throw new Error(data.error);
-        const out = (data.text || "").trim() || "(no response)";
+    return streamOne(m, messages, body)
+      .then(({ out, usage, cost }) => {
         body.textContent = out;
         body.classList.remove("loading");
         copy.disabled = false;
         up.disabled = false;
         attachCopy(copy, () => out);
         attachUp(up, m);
+        const priced = typeof cost === "number"
+          ? `<span class="price">$${cost.toFixed(5)}</span>` : "";
+        meta.innerHTML = `${usage.input_tokens ?? "?"} in · ${usage.output_tokens ?? "?"} out${priced}`;
+        addCost(cost);
       })
       .catch(err => {
         body.textContent = "⚠ " + err.message;
@@ -445,7 +665,7 @@ async function run() {
       });
   });
 
-  send.disabled = false;
+  Promise.allSettled(runs).then(() => { send.disabled = false; });
 }
 
 input.addEventListener("input", () => { autosize(); send.disabled = save.disabled = !input.value.trim(); });
@@ -455,10 +675,25 @@ input.addEventListener("keydown", (e) => {
 send.addEventListener("click", run);
 $("roll").addEventListener("click", roll);
 
-(async function init() {
+const FABLE_ID = "anthropic/claude-fable-5";
+$("allFable").addEventListener("click", () => {
+  const f = CATALOG.find(m => m.id === FABLE_ID);
+  if (!f) { status.textContent = "Fable 5 not in catalog — restart the server"; return; }
+  inPlay = Array.from({ length: 6 }, () => f);   // same model six times -> six variations
+  renderChips();
+});
+
+async function init() {
+  dot.classList.remove("live");
+  status.textContent = "connecting…";
   try {
-    const res = await fetch("/api/models");
+    const res = await fetch("/api/models", { headers: keyHeaders() });
     const data = await res.json();
+    if (data.need_key) {
+      status.textContent = "add your Merge API key to start →";
+      openKeyPanel();
+      return;
+    }
     if (data.error) throw new Error(data.error);
     CATALOG = data.models || [];
     dot.classList.add("live");
@@ -467,7 +702,10 @@ $("roll").addEventListener("click", roll);
   } catch (err) {
     status.textContent = "offline — " + err.message;
   }
-})();
+}
+
+refreshKeyBtn();
+init();
 </script>
 </body>
 </html>
