@@ -112,18 +112,22 @@ def cost_for(model: str, usage: dict, api_key: str = ""):
     )
 
 
+def gateway_payload(messages: list, model: str, stream: bool = False) -> dict:
+    payload = {
+        "model": model,
+        "input": [
+            {"type": "message", "role": m["role"], "content": m["content"]}
+            for m in messages
+        ],
+    }
+    if stream:
+        payload["stream"] = True
+    return payload
+
+
 def complete(messages: list, model: str, api_key: str = ""):
     """Post one turn to the gateway; return (text, usage dict)."""
-    resp = client(api_key).post(
-        "/responses",
-        json={
-            "model": model,
-            "input": [
-                {"type": "message", "role": m["role"], "content": m["content"]}
-                for m in messages
-            ],
-        },
-    )
+    resp = client(api_key).post("/responses", json=gateway_payload(messages, model))
     resp.raise_for_status()
     data = resp.json()
     return (extract_text(data) or str(data)), (data.get("usage") or {})
@@ -150,6 +154,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(500, "web/index.html is missing", "text/plain")
             return self._send(200, html, "text/html; charset=utf-8")
 
+        if self.path == "/favicon.ico":
+            return self._send(204, b"", "image/x-icon")
+
         if self.path.startswith("/api/health"):
             return self._send(200, json.dumps({"ok": True}))
 
@@ -172,14 +179,86 @@ class Handler(BaseHTTPRequestHandler):
 
         return self._send(404, json.dumps({"error": "not found"}))
 
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b"{}"
+        return json.loads(raw or b"{}")
+
+    def _sse(self, obj: dict) -> None:
+        self.wfile.write(f"data: {json.dumps(obj)}\n\n".encode("utf-8"))
+        self.wfile.flush()
+
+    def _chat_stream(self) -> None:
+        """Proxy one streamed turn as simplified SSE: {text} snapshots, then {done}."""
+        try:
+            payload = self._read_json()
+            model = payload.get("model") or DEFAULT_MODEL
+            messages = payload.get("messages") or []
+            key = self._api_key()
+            c = client(key)
+        except PermissionError as exc:
+            return self._send(401, json.dumps({"error": str(exc), "need_key": True}))
+        except Exception as exc:  # noqa: BLE001
+            return self._send(400, json.dumps({"error": str(exc)}))
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+
+        last, usage = "", {}
+        try:
+            with c.stream(
+                "POST", "/responses", json=gateway_payload(messages, model, stream=True)
+            ) as resp:
+                if resp.status_code >= 400:
+                    detail = resp.read().decode("utf-8", "replace")[:300]
+                    return self._sse(
+                        {"error": f"HTTP {resp.status_code}: {detail}", "done": True}
+                    )
+                # The gateway emits cumulative response snapshots, then response.done.
+                for line in resp.iter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    try:
+                        event = json.loads(line[6:])
+                    except ValueError:
+                        continue
+                    if event.get("error"):  # gateway errors arrive as SSE events
+                        err = event["error"]
+                        msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                        return self._sse({"error": msg, "done": True})
+                    text = extract_text(event)
+                    if text and text != last:
+                        last = text
+                        self._sse({"text": text})
+                    if event.get("object") == "response.done":
+                        usage = event.get("usage") or {}
+            self._sse(
+                {
+                    "done": True,
+                    "text": last,
+                    "usage": usage,
+                    "cost": cost_for(model, usage, key),
+                }
+            )
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # browser closed the tab mid-stream
+        except Exception as exc:  # noqa: BLE001 - surface error inside the stream
+            try:
+                self._sse({"error": str(exc), "done": True})
+            except OSError:
+                pass
+
     def do_POST(self) -> None:
+        if self.path == "/api/chat/stream":
+            return self._chat_stream()
+
         if self.path != "/api/chat":
             return self._send(404, json.dumps({"error": "not found"}))
 
-        length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length) if length else b"{}"
         try:
-            payload = json.loads(raw or b"{}")
+            payload = self._read_json()
             model = payload.get("model") or DEFAULT_MODEL
             messages = payload.get("messages") or []
             key = self._api_key()
