@@ -69,14 +69,77 @@
   button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
   .roll { font-weight:500; }
 
-  .chips { display:flex; gap:8px; flex-wrap:wrap; min-height:30px; align-items:center; }
-  .chip {
-    display:inline-flex; align-items:center; gap:7px; padding:5px 11px; font-size:12px;
-    background:var(--panel-2); border:1px solid var(--border); border-radius:999px; color:var(--muted);
+  /* ---- lineup: the models currently in play ---- */
+  .lineup { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 2px; justify-content:center; }
+  .pcard {
+    position:relative; display:flex; align-items:center; gap:9px;
+    background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent);
+    border-radius:10px; padding:8px 13px 8px 10px; animation:rise .25s ease both;
   }
-  .chip i { width:6px; height:6px; border-radius:50%; background:var(--accent); font-style:normal; }
-  .chip .x { cursor:pointer; color:var(--faint); margin-left:2px; font-size:13px; line-height:1; }
-  .chip .x:hover { color:#ff8c7a; }
+  .pnum { font-size:10px; font-weight:700; align-self:flex-start; margin-top:1px; }
+  .pglyph {
+    width:30px; height:30px; flex:none; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+  }
+  .pinfo { display:flex; flex-direction:column; line-height:1.4; min-width:0; }
+  .pname { font-size:12.5px; max-width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .psub { font-size:10px; color:var(--faint); max-width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pcard .x {
+    position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%;
+    background:var(--panel-2); border:1px solid var(--border-2); color:var(--muted);
+    display:none; align-items:center; justify-content:center;
+    font-size:11px; line-height:1; cursor:pointer;
+  }
+  .pcard:hover .x { display:flex; }
+  .pcard .x:hover { color:#ff8c7a; border-color:#ff8c7a; }
+  .lineup .none { color:var(--faint); font-size:12px; align-self:center; }
+
+  /* ---- roulette overlay ---- */
+  .overlay {
+    position:fixed; inset:0; z-index:50; background:rgba(5,5,7,.78);
+    backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center;
+    animation:fadein .18s ease;
+  }
+  .overlay[hidden] { display:none; }
+  @keyframes fadein { from { opacity:0; } }
+  .slotbox {
+    background:var(--panel); border:1px solid var(--accent-d); border-radius:14px;
+    padding:20px 28px 24px; text-align:center; animation:rise .25s ease both;
+    box-shadow:0 0 60px rgba(240,168,90,.16), 0 24px 60px rgba(0,0,0,.6);
+  }
+  .slot-art { color:var(--accent); font-size:11px; line-height:1.3; margin:0 0 16px; user-select:none; }
+  .slot-foot { color:var(--faint); font-size:11px; margin:16px 0 0; user-select:none; }
+  .reelrow { display:flex; gap:14px; justify-content:center; }
+  .rwheel { width:104px; position:relative; }
+  .rwin {
+    height:74px; border:1px solid var(--border-2); border-radius:10px; background:var(--panel-2);
+    display:flex; align-items:center; justify-content:center; font-size:34px; overflow:hidden;
+    box-shadow:inset 0 10px 14px rgba(0,0,0,.5), inset 0 -10px 14px rgba(0,0,0,.5);
+  }
+  .rwheel.spinning .rwin span { animation:reelspin .14s linear infinite; filter:blur(.6px); opacity:.85; }
+  @keyframes reelspin { from { transform:translateY(-14px); } to { transform:translateY(14px); } }
+  .rwheel .rname {
+    margin-top:7px; font-size:10.5px; color:var(--muted);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .rwheel.locked .rwin {
+    border-color:var(--accent);
+    box-shadow:0 0 16px rgba(240,168,90,.4), inset 0 0 12px rgba(240,168,90,.12);
+    animation:lockpop .38s cubic-bezier(.2,1.6,.4,1);
+  }
+  .rwheel.locked .rname { color:var(--accent); }
+  .rwheel .sparkle { position:absolute; left:50%; top:38%; }
+  @keyframes lockpop { 0% { transform:scale(.7); } 55% { transform:scale(1.14); } 100% { transform:scale(1); } }
+  .sparkle { position:relative; width:0; height:0; }
+  .sparkle span {
+    position:absolute; font-size:13px; animation:spark .8s ease-out forwards; pointer-events:none;
+  }
+  @keyframes spark {
+    0%   { opacity:1; transform:translate(0,0) scale(.6) rotate(0deg); }
+    100% { opacity:0; transform:translate(var(--dx), var(--dy)) scale(1.25) rotate(40deg); }
+  }
+  .roll.rolling { border-color:var(--accent); color:var(--accent); }
 
   /* ---- model picker ---- */
   .plist { margin-top:10px; max-height:320px; overflow-y:auto;
@@ -251,8 +314,8 @@
       <button class="roll" id="roll">↻ roll</button>
       <button id="pickBtn">☰ pick</button>
       <button id="allFable">🎭 6× Fable 5</button>
-      <div class="chips" id="chips"></div>
     </div>
+    <div class="lineup" id="chips"></div>
 
     <div class="prompt">
       <textarea id="input" rows="1"
@@ -274,6 +337,16 @@
   ||__|||__|||__|||__|||__||
   |/__\|/__\|/__\|/__\|/__\|</pre>
       <b>roll a few models, type a prompt, and compare hooks side by side.</b>
+    </div>
+  </div>
+
+  <div class="overlay" id="rollOverlay" hidden>
+    <div class="slotbox">
+      <pre class="slot-art"> .-----------------------------------.
+(  *  m o d e l   r o u l e t t e  *  )
+ '-----------------------------------'</pre>
+      <div class="reelrow" id="reelRow"></div>
+      <pre class="slot-foot">~ click anywhere to skip the spin ~</pre>
     </div>
   </div>
 
@@ -458,12 +531,32 @@ function pick(n) {
   return pool.slice(0, Math.max(1, Math.min(n, pool.length)));
 }
 
+// one color per slot — the lineup card and its answer card share it
+const PALETTE = ["#7dd3fc", "#f0abfc", "#86efac", "#fcd34d", "#a5b4fc", "#fda4af", "#5eead4", "#fdba74"];
+const slotColor = (i) => PALETTE[i % PALETTE.length];
+
 function renderChips() {
   chips.innerHTML = "";
   inPlay.forEach((m, i) => {
-    const c = document.createElement("span");
-    c.className = "chip";
-    const dotEl = document.createElement("i");
+    const color = slotColor(i);
+    const card = document.createElement("div");
+    card.className = "pcard";
+    card.style.borderLeftColor = color;
+    card.style.animationDelay = (i * 45) + "ms";
+
+    const num = document.createElement("span");
+    num.className = "pnum"; num.textContent = `#${i + 1}`; num.style.color = color;
+    const glyph = document.createElement("span");
+    glyph.className = "pglyph"; glyph.textContent = glyphFor(m.id);
+    const info = document.createElement("span");
+    info.className = "pinfo";
+    const name = document.createElement("span");
+    name.className = "pname"; name.textContent = m.name; name.title = m.id;
+    const sub = document.createElement("span");
+    sub.className = "psub";
+    sub.textContent = m.price ? `$${m.price.in} in · $${m.price.out} out per M` : m.id;
+    info.append(name, sub);
+
     const x = document.createElement("span");
     x.className = "x"; x.textContent = "×"; x.title = "remove";
     x.addEventListener("click", () => {
@@ -471,18 +564,146 @@ function renderChips() {
       renderChips();
       if (!picker.hidden) renderPickList();
     });
-    c.append(dotEl, document.createTextNode(m.name), x);
-    chips.appendChild(c);
+
+    card.append(num, glyph, info, x);
+    chips.appendChild(card);
   });
+  if (!inPlay.length) {
+    const none = document.createElement("span");
+    none.className = "none";
+    none.textContent = "no models in play — ↻ roll or ☰ pick some";
+    chips.appendChild(none);
+  }
   pickCount.textContent = inPlay.length;
 }
 
-function roll() {
-  if (!CATALOG.length) return;
+/* ---- slot-machine roll ---- */
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const DICE = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+let rolling = false;
+let actx = null;
+
+// vendor "logos" — one glyph per provider, 🎲 for anyone we don't know yet
+const VENDOR_GLYPHS = {
+  anthropic: "✴️", openai: "⬡", google: "✦", "meta-llama": "🦙", meta: "🦙",
+  "deepseek-ai": "🐋", deepseek: "🐋", mistralai: "🌪️", mistral: "🌪️",
+  amazon: "📦", cohere: "⌘", xai: "✖️", qwen: "☁️", alibaba: "☁️",
+  "z-ai": "⚡", zhipuai: "⚡", moonshotai: "🌙", nvidia: "▲", microsoft: "🪟",
+  ai21: "🅰️", perplexity: "🔮",
+};
+const glyphFor = (id) => VENDOR_GLYPHS[id.split("/")[0].toLowerCase()] || "🎲";
+
+function blip(freq, dur = 0.07, type = "triangle", gain = 0.04) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(gain, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+  } catch { /* no audio? no problem */ }
+}
+
+function sparkleBurst(anchor) {
+  const burst = document.createElement("span");
+  burst.className = "sparkle";
+  for (let i = 0; i < 6; i++) {
+    const s = document.createElement("span");
+    s.textContent = ["✨", "⭐", "🎉"][i % 3];
+    const a = (i / 6) * 2 * Math.PI + Math.random();
+    s.style.setProperty("--dx", `${Math.cos(a) * (28 + Math.random() * 22)}px`);
+    s.style.setProperty("--dy", `${Math.sin(a) * (24 + Math.random() * 18) - 14}px`);
+    burst.appendChild(s);
+  }
+  anchor.appendChild(burst);
+  setTimeout(() => burst.remove(), 900);
+}
+
+async function roll(animate = false) {
+  if (!CATALOG.length || rolling) return;
   const n = parseInt($("count").value, 10) || 3;
-  inPlay = pick(n);
+  const result = pick(n);
+
+  if (!animate) {                      // instant path (page load)
+    inPlay = result;
+    renderChips();
+    if (!picker.hidden) renderPickList();
+    return;
+  }
+
+  rolling = true;
+  const rollBtn = $("roll");
+  rollBtn.classList.add("rolling");
+  rollBtn.disabled = pickBtn.disabled = $("allFable").disabled = send.disabled = true;
+
+  // build one mini wheel per slot inside the roulette overlay
+  const overlay = $("rollOverlay"), reelRow = $("reelRow");
+  reelRow.innerHTML = "";
+  const wheels = result.map(() => {
+    const w = document.createElement("div");
+    w.className = "rwheel spinning";
+    w.innerHTML = `<div class="rwin"><span>🎲</span></div><div class="rname">…</div>`;
+    reelRow.appendChild(w);
+    return w;
+  });
+  overlay.hidden = false;
+
+  let skip = false;
+  const onSkip = () => { skip = true; };
+  overlay.addEventListener("click", onSkip);
+
+  const lockWheel = (i) => {
+    const w = wheels[i];
+    w.classList.remove("spinning");
+    w.classList.add("locked");
+    w.querySelector(".rwin span").textContent = glyphFor(result[i].id);
+    const nameEl = w.querySelector(".rname");
+    nameEl.textContent = result[i].name;
+    nameEl.title = result[i].id;
+  };
+
+  let tick = 0;
+  const spin = setInterval(() => {
+    tick++;
+    rollBtn.textContent = `${DICE[tick % 6]} rolling…`;
+    wheels.forEach(w => {
+      if (w.classList.contains("locked")) return;
+      const m = CATALOG[(Math.random() * CATALOG.length) | 0];
+      w.querySelector(".rwin span").textContent = glyphFor(m.id);
+      w.querySelector(".rname").textContent = m.name;
+    });
+    if (tick % 2 === 0) blip(1900 + Math.random() * 300, 0.02, "square", 0.012);
+  }, 80);
+
+  await sleep(700);                    // let the wheels blur past for a beat
+  for (let i = 0; i < wheels.length; i++) {
+    if (skip) break;
+    lockWheel(i);
+    blip(420 + i * 90, 0.1);           // rising pitch as each wheel lands
+    if (i === wheels.length - 1) {
+      sparkleBurst(wheels[i]);
+      setTimeout(() => { blip(660, 0.12); }, 80);   // little ta-da
+      setTimeout(() => { blip(880, 0.16); }, 170);
+    }
+    await sleep(360);
+  }
+  clearInterval(spin);
+  wheels.forEach((_, i) => lockWheel(i));   // skip (or stragglers): reveal everything
+
+  await sleep(skip ? 250 : 650);       // admire the glow, then return to the arena
+  overlay.hidden = true;
+  overlay.removeEventListener("click", onSkip);
+
+  inPlay = result;
   renderChips();
   if (!picker.hidden) renderPickList();
+  rollBtn.classList.remove("rolling");
+  rollBtn.textContent = "↻ roll";
+  rollBtn.disabled = pickBtn.disabled = $("allFable").disabled = false;
+  send.disabled = !input.value.trim();
+  rolling = false;
 }
 
 /* ---- model picker ---- */
@@ -548,12 +769,14 @@ function autosize() {
 }
 
 function cardFor(m, idx) {
+  const color = slotColor(idx);
   const card = document.createElement("div");
   card.className = "card";
   card.style.animationDelay = (idx * 60) + "ms";
+  card.style.borderTop = `2px solid ${color}`;
   card.innerHTML = `
     <div class="card-head">
-      <span class="name">${m.name}</span>
+      <span class="name" style="color:${color}">#${idx + 1} · ${m.name}</span>
       <span class="id">${m.id}</span>
       <span class="grow"></span>
       <button class="up" disabled>👍 like</button>
@@ -673,7 +896,7 @@ input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
 });
 send.addEventListener("click", run);
-$("roll").addEventListener("click", roll);
+$("roll").addEventListener("click", () => roll(true));
 
 const FABLE_ID = "anthropic/claude-fable-5";
 $("allFable").addEventListener("click", () => {
