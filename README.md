@@ -7,11 +7,15 @@ Install the SDK:
 pip install -r requirements.txt
 ```
 
-### Web UI — model arena
+### Web UI — model slots
 
-A dark, terminal-style chat page. Roll a handful of models, send one prompt,
-and compare each model's answer side by side — every output box has a copy
-button in its top-right corner. Great for drafting LinkedIn hooks.
+A dark, terminal-style GPT-5.6 slot machine. Pull the lever and three animated
+reels stop on a 3×3 result: the winning symbol selects Sol, Terra, or Luna, while
+the strongest payline selects reasoning effort from `none` through `max`. Rare
+eclipse patterns enable Pro mode. Send a prompt using the resulting configuration,
+then track its cost and vote for configurations that perform well. Higher-tier
+wins trigger cabinet shakes and model-colored particles; Sol at `xhigh`, `max`,
+or Pro unlocks the special **SOL ULTRA** celebration.
 
 ```powershell
 $env:MERGE_API_KEY="your_api_key_here"   # or a .env file (see below)

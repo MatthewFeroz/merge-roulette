@@ -3,932 +3,656 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>merge · model arena</title>
+<title>merge · model slots</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --bg:      #0b0b0d;
-    --panel:   #131317;
-    --panel-2: #17171c;
-    --border:  #26262d;
-    --border-2:#34343d;
-    --text:    #e7e7ea;
-    --muted:   #8b8b94;
-    --faint:   #5a5a63;
-    --accent:  #f0a85a;   /* terminal amber */
-    --accent-d:#b97b34;
-    --ok:      #7ee787;
-    --radius:  10px;
+    --bg:#09090b; --panel:#131317; --panel-2:#19191f; --border:#292931;
+    --border-2:#3a3a44; --text:#eeeeef; --muted:#92929c; --faint:#62626c;
+    --accent:#f0a85a; --accent-d:#b97b34; --ok:#7ee787; --danger:#ff8c7a;
+    --sol:#f5b84b; --terra:#64d39b; --luna:#a897ff; --radius:12px;
   }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  * { box-sizing:border-box; }
+  html, body { min-height:100%; }
   body {
-    margin: 0;
+    margin:0; color:var(--text); font:14px/1.6 "JetBrains Mono", ui-monospace, monospace;
     background:
-      radial-gradient(900px 500px at 85% -10%, rgba(240,168,90,.07), transparent 60%),
+      radial-gradient(800px 520px at 13% 2%, rgba(168,151,255,.07), transparent 62%),
+      radial-gradient(900px 560px at 90% -8%, rgba(245,184,75,.08), transparent 62%),
       var(--bg);
-    color: var(--text);
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 14px;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
+    -webkit-font-smoothing:antialiased;
   }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 64px; }
-
-  /* ---- header ---- */
-  header {
-    display: flex; align-items: center; gap: 14px;
-    padding-bottom: 18px; border-bottom: 1px solid var(--border);
-  }
-  .mark { font-weight: 700; letter-spacing: .5px; font-size: 15px; }
-  .mark b { color: var(--accent); }
-  .caret { display:inline-block; width:8px; height:15px; background:var(--accent);
-           margin-left:2px; transform:translateY(2px); animation:blink 1.1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  .dot { width:7px; height:7px; border-radius:50%; background:var(--faint); }
-  .dot.live { background:var(--ok); box-shadow:0 0 8px rgba(126,231,135,.6); }
-  .status { color: var(--muted); font-size: 12px; }
-  header .spacer { flex: 1; }
-
-  /* ---- controls ---- */
-  .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:20px 0 14px; }
-  .lbl { color: var(--faint); font-size:12px; text-transform:uppercase; letter-spacing:1px; }
-  .num {
-    width:54px; background:var(--panel); color:var(--text); border:1px solid var(--border);
-    border-radius:8px; padding:7px 8px; font:inherit; text-align:center;
-  }
-  .num:focus { outline:none; border-color:var(--accent-d); }
+  button, input, textarea { font:inherit; }
   button {
-    font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--border-2);
-    background:var(--panel); color:var(--text); padding:8px 14px; transition:.15s ease;
+    cursor:pointer; border:1px solid var(--border-2); border-radius:9px;
+    background:var(--panel); color:var(--text); padding:8px 14px; transition:.16s ease;
   }
   button:hover { border-color:var(--accent-d); color:var(--accent); }
   button:active { transform:translateY(1px); }
-  button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
-  .roll { font-weight:500; }
+  button:disabled { cursor:not-allowed; opacity:.45; transform:none; }
+  .wrap { width:min(1180px, 100%); margin:auto; padding:26px 24px 64px; }
 
-  /* ---- lineup: the models currently in play ---- */
-  .lineup { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 2px; justify-content:center; }
-  .pcard {
-    position:relative; display:flex; align-items:center; gap:9px;
-    background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent);
-    border-radius:10px; padding:8px 13px 8px 10px; animation:rise .25s ease both;
-  }
-  .pnum { font-size:10px; font-weight:700; align-self:flex-start; margin-top:1px; }
-  .pglyph {
-    width:30px; height:30px; flex:none; border-radius:8px;
-    background:var(--panel-2); border:1px solid var(--border);
-    display:flex; align-items:center; justify-content:center; font-size:15px;
-  }
-  .pinfo { display:flex; flex-direction:column; line-height:1.4; min-width:0; }
-  .pname { font-size:12.5px; max-width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .psub { font-size:10px; color:var(--faint); max-width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .pcard .x {
-    position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%;
-    background:var(--panel-2); border:1px solid var(--border-2); color:var(--muted);
-    display:none; align-items:center; justify-content:center;
-    font-size:11px; line-height:1; cursor:pointer;
-  }
-  .pcard:hover .x { display:flex; }
-  .pcard .x:hover { color:#ff8c7a; border-color:#ff8c7a; }
-  .lineup .none { color:var(--faint); font-size:12px; align-self:center; }
-
-  /* ---- roulette overlay ---- */
-  .overlay {
-    position:fixed; inset:0; z-index:50; background:rgba(5,5,7,.78);
-    backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center;
-    animation:fadein .18s ease;
-  }
-  .overlay[hidden] { display:none; }
-  @keyframes fadein { from { opacity:0; } }
-  .slotbox {
-    background:var(--panel); border:1px solid var(--accent-d); border-radius:14px;
-    padding:20px 28px 24px; text-align:center; animation:rise .25s ease both;
-    box-shadow:0 0 60px rgba(240,168,90,.16), 0 24px 60px rgba(0,0,0,.6);
-  }
-  .slot-art { color:var(--accent); font-size:11px; line-height:1.3; margin:0 0 16px; user-select:none; }
-  .slot-foot { color:var(--faint); font-size:11px; margin:16px 0 0; user-select:none; }
-  .reelrow { display:flex; gap:14px; justify-content:center; }
-  .rwheel { width:104px; position:relative; }
-  .rwin {
-    height:74px; border:1px solid var(--border-2); border-radius:10px; background:var(--panel-2);
-    display:flex; align-items:center; justify-content:center; font-size:34px; overflow:hidden;
-    box-shadow:inset 0 10px 14px rgba(0,0,0,.5), inset 0 -10px 14px rgba(0,0,0,.5);
-  }
-  .rwheel.spinning .rwin span { animation:reelspin .14s linear infinite; filter:blur(.6px); opacity:.85; }
-  @keyframes reelspin { from { transform:translateY(-14px); } to { transform:translateY(14px); } }
-  .rwheel .rname {
-    margin-top:7px; font-size:10.5px; color:var(--muted);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .rwheel.locked .rwin {
-    border-color:var(--accent);
-    box-shadow:0 0 16px rgba(240,168,90,.4), inset 0 0 12px rgba(240,168,90,.12);
-    animation:lockpop .38s cubic-bezier(.2,1.6,.4,1);
-  }
-  .rwheel.locked .rname { color:var(--accent); }
-  .rwheel .sparkle { position:absolute; left:50%; top:38%; }
-  @keyframes lockpop { 0% { transform:scale(.7); } 55% { transform:scale(1.14); } 100% { transform:scale(1); } }
-  .sparkle { position:relative; width:0; height:0; }
-  .sparkle span {
-    position:absolute; font-size:13px; animation:spark .8s ease-out forwards; pointer-events:none;
-  }
-  @keyframes spark {
-    0%   { opacity:1; transform:translate(0,0) scale(.6) rotate(0deg); }
-    100% { opacity:0; transform:translate(var(--dx), var(--dy)) scale(1.25) rotate(40deg); }
-  }
-  .roll.rolling { border-color:var(--accent); color:var(--accent); }
-
-  /* ---- model picker ---- */
-  .plist { margin-top:10px; max-height:320px; overflow-y:auto;
-           scrollbar-width:thin; scrollbar-color:var(--border-2) transparent; }
-  .mrow { display:flex; align-items:center; gap:10px; padding:6px 8px; cursor:pointer;
-          border-radius:7px; font-size:12.5px; }
-  .mrow:hover { background:var(--panel-2); }
-  .mrow .check { width:16px; color:var(--ok); flex:none; }
-  .mrow .mname { white-space:nowrap; }
-  .mrow .mid { color:var(--faint); font-size:11px; flex:1; overflow:hidden;
-               text-overflow:ellipsis; white-space:nowrap; }
-  .mrow .mprice { color:var(--accent); font-size:11px; flex:none; }
-  .mrow.on .mname { color:var(--accent); }
-
-  /* ---- prompt box ---- */
-  .prompt {
-    margin-top:8px; background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius); padding:14px 16px; transition:border-color .15s ease;
-  }
-  .prompt:focus-within { border-color:var(--accent-d); }
-  .prompt textarea {
-    width:100%; resize:none; border:0; background:transparent; color:var(--text);
-    font:inherit; line-height:1.6; outline:none; min-height:26px; max-height:220px;
-  }
-  .prompt textarea::placeholder { color:var(--faint); }
-  .promptbar { display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
-  .hint { color:var(--faint); font-size:11.5px; }
-  .send { font-weight:700; }
-  .send:not(:disabled) { border-color:var(--accent-d); color:var(--accent); }
-
-  /* ---- results ---- */
-  .grid { display:grid; gap:16px; margin-top:26px;
-          grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); }
-  .card {
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-    overflow:hidden; display:flex; flex-direction:column; animation:rise .35s ease both;
-  }
-  @keyframes rise { from { opacity:0; transform:translateY(10px); } }
-  .card-head {
-    display:flex; align-items:center; gap:10px; padding:10px 12px;
-    border-bottom:1px solid var(--border); background:var(--panel-2);
-  }
-  .card-head .name { font-weight:500; font-size:13px; }
-  .card-head .id { color:var(--faint); font-size:11px; }
-  .card-head .grow { flex:1; }
-  .copy {
-    padding:5px 10px; font-size:11.5px; border-radius:7px;
-    border:1px solid var(--border-2); background:transparent; color:var(--muted);
-  }
-  .copy:hover { color:var(--accent); border-color:var(--accent-d); }
-  .copy.done { color:var(--ok); border-color:var(--ok); }
-  .card-body {
-    padding:14px 16px; white-space:pre-wrap; word-break:break-word;
-    font-size:13px; color:var(--text); flex:1; min-height:44px;
-    max-height:340px; overflow-y:auto;
-    scrollbar-width:thin; scrollbar-color:var(--border-2) transparent;
-  }
-  .card-body::-webkit-scrollbar { width:9px; }
-  .card-body::-webkit-scrollbar-track { background:transparent; }
-  .card-body::-webkit-scrollbar-thumb {
-    background:var(--border-2); border-radius:99px;
-    border:2px solid var(--panel); background-clip:padding-box;
-  }
-  .card-body::-webkit-scrollbar-thumb:hover { background:var(--accent-d); background-clip:padding-box; }
-  .card-body.err { color:#ff8c7a; }
-  .card-meta {
-    padding:8px 16px; border-top:1px solid var(--border); background:var(--panel-2);
-    color:var(--faint); font-size:11px; display:flex; gap:8px; min-height:30px; align-items:center;
-  }
-  .card-meta .price { color:var(--accent); margin-left:auto; }
+  header { display:flex; align-items:center; gap:13px; padding-bottom:18px; border-bottom:1px solid var(--border); }
+  .mark { font-weight:700; letter-spacing:.45px; }
+  .mark b { color:var(--accent); }
+  .caret { display:inline-block; width:8px; height:15px; margin-left:3px; background:var(--accent);
+           transform:translateY(2px); animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  .spacer { flex:1; }
+  .status { color:var(--muted); font-size:11.5px; }
   .cost { color:var(--accent); font-variant-numeric:tabular-nums; }
-  .loading { color:var(--muted); }
-  .loading .blk { display:inline-block; width:8px; height:14px; background:var(--accent);
-                  transform:translateY(2px); animation:blink 1s steps(1) infinite; }
-
-  .up {
-    padding:5px 10px; font-size:11.5px; border-radius:7px;
-    border:1px solid var(--border-2); background:transparent; color:var(--muted);
-  }
-  .up:hover { color:var(--accent); border-color:var(--accent-d); }
-  .up.on { color:#0b0b0d; background:var(--accent); border-color:var(--accent); font-weight:700; }
-
-  /* ---- leaderboard ---- */
-  .board-btn { padding:6px 12px; font-size:12px; }
-  .board {
-    margin-top:16px; background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius); padding:16px 18px; animation:rise .25s ease both;
-  }
-  .board h3 { margin:0 0 12px; font-size:12px; letter-spacing:1px; text-transform:uppercase;
-              color:var(--faint); font-weight:500; display:flex; align-items:center; }
-  .board h3 .reset { margin-left:auto; font-size:11px; cursor:pointer; color:var(--faint);
-                     text-transform:none; letter-spacing:0; }
-  .board h3 .reset:hover { color:#ff8c7a; }
-  .brow { display:flex; align-items:center; gap:12px; padding:7px 0; }
-  .brow .rank { color:var(--faint); width:22px; }
-  .brow .bname { width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .brow .track { flex:1; height:8px; background:var(--panel-2); border-radius:99px; overflow:hidden; }
-  .brow .fill { height:100%; background:var(--accent); border-radius:99px; transition:width .4s ease; }
-  .brow .v { width:34px; text-align:right; color:var(--muted); font-size:12px; }
-  .board .none { color:var(--faint); font-size:12px; }
-
-  /* ---- api key panel ---- */
-  .keyrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .keyrow input {
-    flex:1; min-width:240px; background:var(--panel-2); color:var(--text);
-    border:1px solid var(--border); border-radius:8px; padding:9px 12px; font:inherit; font-size:13px;
-  }
-  .keyrow input:focus { outline:none; border-color:var(--accent-d); }
-  .keynote { margin-top:10px; color:var(--faint); font-size:11.5px; line-height:1.5; }
-  .keynote a { color:var(--muted); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none; }
+  .dot.live { background:var(--ok); box-shadow:0 0 9px rgba(126,231,135,.65); }
+  .head-btn { padding:6px 11px; font-size:11.5px; }
   .key-btn.haskey { color:var(--ok); border-color:var(--ok); }
 
-  /* ---- saved prompts ---- */
-  .prow { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid var(--border); }
-  .prow:first-of-type { border-top:0; }
-  .prow .ptext { flex:1; cursor:pointer; color:var(--text); font-size:13px; line-height:1.5;
-                 white-space:pre-wrap; word-break:break-word; }
-  .prow .ptext:hover { color:var(--accent); }
-  .prow .del { cursor:pointer; color:var(--faint); font-size:15px; line-height:1; padding:2px 4px; }
-  .prow .del:hover { color:#ff8c7a; }
-  .save-btn { font-size:12px; padding:8px 12px; }
-  .save-btn.done { color:var(--ok); border-color:var(--ok); }
+  .panel { margin-top:16px; padding:16px 18px; background:var(--panel); border:1px solid var(--border);
+           border-radius:var(--radius); animation:rise .25s ease both; }
+  .panel h3 { display:flex; align-items:center; margin:0 0 12px; color:var(--faint); font-size:11.5px;
+              font-weight:500; letter-spacing:1px; text-transform:uppercase; }
+  .reset { margin-left:auto; cursor:pointer; color:var(--faint); font-size:11px; letter-spacing:0; text-transform:none; }
+  .reset:hover { color:var(--danger); }
+  .keyrow { display:flex; align-items:center; gap:10px; }
+  .keyrow input { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--border);
+                  border-radius:8px; outline:none; background:var(--panel-2); color:var(--text); }
+  .keyrow input:focus { border-color:var(--accent-d); }
+  .keynote { margin-top:10px; color:var(--faint); font-size:11px; }
+  .keynote a { color:var(--muted); }
 
-  /* ---- empty state ---- */
-  .empty { margin-top:42px; color:var(--faint); font-size:13px; text-align:center; }
-  .empty pre { color:var(--border-2); line-height:1.3; margin:0 0 16px; user-select:none; }
-  .empty b { color:var(--muted); font-weight:400; }
+  .slot-stage { margin-top:22px; overflow:hidden; border:1px solid var(--border); border-radius:16px;
+                background:linear-gradient(145deg, rgba(25,25,31,.96), rgba(15,15,18,.98)); }
+  .stage-head { display:flex; align-items:flex-start; gap:18px; padding:17px 20px; border-bottom:1px solid var(--border); }
+  .eyebrow { color:var(--accent); font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; }
+  .stage-title { margin-top:2px; font-size:16px; font-weight:700; }
+  .stage-sub { margin-top:2px; color:var(--muted); font-size:11.5px; }
+  .stage-main { display:flex; justify-content:center; min-height:500px; padding:28px 24px 30px; }
+  .slot-zone { width:min(760px,100%); display:flex; flex-direction:column; align-items:center; }
+  .slot-cabinet { position:relative; width:min(640px,100%); padding:14px; border:3px solid #df9d22; border-radius:26px 26px 18px 18px;
+                  background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,rgba(0,0,0,.04) 1px 3px),
+                             linear-gradient(145deg,#d22b21,#8e1517 45%,#5f0c11);
+                  box-shadow:0 26px 50px rgba(0,0,0,.58),inset 0 1px rgba(255,255,255,.26),0 0 0 5px #3b1011; }
+  .slot-cabinet::before { content:""; position:absolute; inset:6px; pointer-events:none; border:2px solid rgba(255,195,58,.45);
+                          border-radius:19px 19px 12px 12px; }
+  .slot-marquee { position:relative; z-index:1; display:flex; min-height:112px; margin:0 8px 12px; padding:25px 18px 12px;
+                  flex-direction:column; justify-content:center; align-items:center; border:4px solid #d99b1c;
+                  border-radius:52% 52% 12px 12px / 72% 72% 12px 12px; text-align:center; color:#30150c;
+                  text-transform:uppercase; transform:translateZ(0);
+                  background:repeating-linear-gradient(96deg,rgba(255,255,255,.12) 0 2px,transparent 2px 6px),
+                             linear-gradient(#ffd847,#e8a91e 72%,#bd7212);
+                  box-shadow:inset 0 0 0 3px #8e1c18,inset 0 -9px 20px rgba(109,45,8,.2),0 4px 0 #5f1012; }
+  .slot-marquee span { font-family:Georgia,"Times New Roman",serif; font-size:30px; font-weight:900; line-height:.85;
+                       letter-spacing:5px; text-shadow:1px 2px 0 #fff2a6,-1px -1px 0 #fff2a6,2px 3px 0 rgba(95,19,12,.4); }
+  .slot-marquee strong { margin-top:7px; padding:1px 14px 2px; border:2px solid #971914; color:#fff0a3;
+                         background:#b51b18; font-size:15px; letter-spacing:5px; line-height:1.25;
+                         box-shadow:inset 0 1px rgba(255,255,255,.22),0 2px 0 #6e100f; }
+  .slot-marquee small { display:block; margin-top:5px; color:#733817; font-size:8px; font-weight:700; letter-spacing:2px; }
+  .slot-screen { position:relative; z-index:1; padding:14px; border:5px solid #e5aa2e; border-radius:9px;
+                 background:#171316; box-shadow:inset 0 0 0 3px #681215,inset 0 0 30px rgba(0,0,0,.86),0 3px 0 #5b0d10; }
+  .reel-bank { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; overflow:hidden; padding:8px;
+               border:1px solid #34343d; border-radius:8px; background:#070708; }
+  .reel { display:grid; grid-template-rows:repeat(3,82px); gap:5px; overflow:hidden; padding:5px;
+          border:2px solid #393942; border-radius:7px; background:#0d0d10;
+          box-shadow:inset 0 14px 24px rgba(0,0,0,.8),inset 0 -14px 24px rgba(0,0,0,.8); }
+  .reel.spinning { border-color:#6b5437; box-shadow:inset 0 16px 28px rgba(0,0,0,.82),inset 0 -16px 28px rgba(0,0,0,.82),0 0 12px rgba(240,168,90,.12); }
+  .cell { position:relative; display:grid; place-items:center; border:1px solid #303038; border-radius:5px;
+          background:linear-gradient(#f3eee4,#d8d0c2 50%,#eee8dc); color:#272329; font-size:35px;
+          text-shadow:0 1px rgba(255,255,255,.8); transition:border-color .2s,transform .2s,box-shadow .2s,filter .15s; }
+  .cell.idle { color:#847d72; opacity:.48; }
+  .cell.sol { color:#b6780d; } .cell.terra { color:#158258; } .cell.luna { color:#6650be; }
+  .cell.spinning { animation:reelblur .11s linear infinite alternate; filter:blur(1.4px); opacity:.72; }
+  .cell.stopped { animation:reelstop .34s cubic-bezier(.2,1.55,.4,1); }
+  .cell.winner { z-index:3; transform:scale(1.045); border-color:currentColor;
+                 box-shadow:0 0 0 2px currentColor,0 0 22px color-mix(in srgb,currentColor 60%,transparent),inset 0 0 16px rgba(255,255,255,.72); }
+  @keyframes reelblur { from { transform:translateY(-8px) scaleY(1.08); } to { transform:translateY(8px) scaleY(.94); } }
+  @keyframes reelstop { 0% { transform:translateY(-18px) scaleY(1.12); } 65% { transform:translateY(3px) scaleY(.96); } }
+  .payline { position:absolute; z-index:2; left:0; right:0; top:50%; height:2px; transform:translateY(-1px); pointer-events:none;
+             background:linear-gradient(90deg,transparent,#d24f43 8%,#ff796d 50%,#d24f43 92%,transparent);
+             box-shadow:0 0 7px rgba(255,88,73,.65); opacity:.7; }
+  .slot-meter { display:flex; justify-content:space-between; gap:10px; margin-top:10px; padding:7px 10px;
+                border:1px solid #302b25; border-radius:5px; background:#0b0908; color:#b68b52; font-size:9.5px;
+                letter-spacing:1px; text-transform:uppercase; }
+  .slot-meter span:last-child { color:#f2bd72; }
+  .slot-deck { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-around; height:48px;
+               margin:12px 2px 1px; border:2px solid #4d0b0e; border-radius:6px 6px 13px 13px;
+               background:repeating-linear-gradient(105deg,rgba(255,255,255,.035) 0 2px,transparent 2px 6px),#161318;
+               box-shadow:inset 0 3px 8px rgba(0,0,0,.75),0 2px 0 rgba(255,195,58,.35); }
+  .deck-light { width:42px; height:15px; border:2px solid #3f0809; border-radius:50%;
+                box-shadow:inset 0 3px 4px rgba(255,255,255,.28),0 3px 0 rgba(0,0,0,.45); }
+  .deck-light.red { background:#dc2820; } .deck-light.gold { background:#f0b62f; }
+  .lever { position:absolute; z-index:8; right:-73px; top:132px; width:76px; height:190px; padding:0; border:0;
+           background:transparent; overflow:visible; cursor:ns-resize; touch-action:none; user-select:none; }
+  .lever:hover,.lever:focus-visible { border:0; color:inherit; outline:none; }
+  .lever:active { cursor:ns-resize; transform:none; }
+  .lever:disabled { opacity:1; cursor:default; }
+  .lever-base { position:absolute; right:4px; bottom:20px; width:34px; height:76px; border:3px solid #d18b20; border-radius:7px;
+                background:linear-gradient(90deg,#751013,#c92920 55%,#761014); box-shadow:3px 5px 0 rgba(0,0,0,.35); }
+  .lever-arm { position:absolute; right:15px; bottom:72px; width:10px; height:105px; border:2px solid #161217; border-radius:6px;
+               background:linear-gradient(90deg,#3d3940,#0f0e11 55%,#4c4850); transform-origin:50% 100%;
+               transform:translateY(var(--pull,0px)); transition:transform .24s cubic-bezier(.2,.9,.25,1.25);
+               box-shadow:2px 1px 0 rgba(255,255,255,.12); }
+  .lever-knob { position:absolute; left:50%; top:-21px; width:39px; height:39px; transform:translateX(-50%); border:3px solid #9e5f12;
+                border-radius:50%; background:repeating-linear-gradient(0deg,rgba(122,63,8,.12) 0 2px,transparent 2px 4px),
+                radial-gradient(circle at 35% 28%,#ffe987,#f0b828 50%,#b76b0c); box-shadow:inset 0 2px rgba(255,255,255,.48),2px 4px 0 rgba(0,0,0,.35); }
+  .lever.dragging .lever-arm { transition:none; }
+  .lever.armed .lever-knob { filter:brightness(1.28); box-shadow:inset 0 2px rgba(255,255,255,.55),0 0 18px rgba(255,197,52,.7),2px 4px 0 rgba(0,0,0,.35); }
+  .lever.pulled .lever-arm { animation:leverpull .64s cubic-bezier(.2,.85,.28,1); }
+  @keyframes leverpull { 0% { transform:translateY(0); } 48% { transform:translateY(74px); } 65% { transform:translateY(70px); } 100% { transform:translateY(0); } }
+  .particle-layer { position:absolute; z-index:20; inset:0; overflow:visible; pointer-events:none; }
+  .win-particle { position:absolute; left:50%; top:52%; width:8px; height:8px; border-radius:2px; opacity:0;
+                  background:var(--particle); box-shadow:0 0 8px var(--particle);
+                  animation:particleburst var(--duration) cubic-bezier(.12,.7,.25,1) var(--delay) forwards; }
+  @keyframes particleburst { 0% { opacity:0; transform:translate(-50%,-50%) scale(.2) rotate(0); }
+    12% { opacity:1; } 100% { opacity:0; transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(var(--scale)) rotate(var(--rot)); } }
+  .slot-cabinet.win-kick { animation:winkick .42s cubic-bezier(.22,.8,.3,1); }
+  .slot-cabinet.big-win { animation:bigshake .72s linear; }
+  .slot-cabinet.sol-ultra { animation:ultrashake .9s linear; box-shadow:0 26px 50px rgba(0,0,0,.58),0 0 45px rgba(255,187,45,.48),0 0 0 5px #5f250e; }
+  .slot-cabinet.sol-ultra .slot-marquee { filter:brightness(1.25) saturate(1.2); }
+  @keyframes winkick { 35% { transform:translateY(-5px) scale(1.006); } 70% { transform:translateY(2px); } }
+  @keyframes bigshake { 0%,100% { transform:none; } 15% { transform:translate(-4px,-2px) rotate(-.4deg); } 30% { transform:translate(4px,1px) rotate(.4deg); }
+    45% { transform:translate(-3px,1px); } 60% { transform:translate(3px,-1px); } 78% { transform:translate(-1px,1px); } }
+  @keyframes ultrashake { 0%,100% { transform:none; } 10% { transform:translate(-6px,-3px) rotate(-.6deg); } 20% { transform:translate(6px,2px) rotate(.6deg); }
+    30% { transform:translate(-5px,2px); } 40% { transform:translate(5px,-2px); } 52% { transform:translate(-4px,1px); } 65% { transform:translate(4px,-1px); }
+    78% { transform:translate(-2px,1px); } 90% { transform:translate(2px,-1px); } }
+  .slot-actions { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:18px; }
+  .spin-btn { min-width:205px; padding:11px 20px; border:2px solid #a46b2d; color:#16110c; font-weight:700;
+              background:linear-gradient(#ffc275,#da8535); box-shadow:inset 0 1px rgba(255,255,255,.48),0 4px 0 #75441e; }
+  .spin-btn:hover { color:#080706; border-color:#e1a254; filter:brightness(1.06); }
+  .spin-btn:active { transform:translateY(3px); box-shadow:inset 0 1px rgba(255,255,255,.3),0 1px 0 #75441e; }
+  .spin-btn.rolling { color:#24180d; animation:buttonpulse .48s ease-in-out infinite alternate; }
+  @keyframes buttonpulse { to { filter:brightness(1.18); box-shadow:inset 0 1px rgba(255,255,255,.5),0 4px 0 #75441e,0 0 18px rgba(240,168,90,.28); } }
+  .legend { display:flex; gap:15px; margin-top:17px; color:var(--muted); font-size:10.5px; }
+  .legend span { display:flex; align-items:center; gap:5px; }
+  .legend .sol { color:var(--sol); } .legend .terra { color:var(--terra); } .legend .luna { color:var(--luna); }
+  .icon-sprite { position:absolute; width:0; height:0; overflow:hidden; }
+  .model-icon { display:block; width:1em; height:1em; overflow:visible; }
+  .legend-icon { width:16px; height:16px; }
+  .cell .slot-icon { width:46px; height:46px; filter:drop-shadow(0 1px 0 rgba(255,255,255,.5)); }
+  .outcome { width:min(640px,100%); min-height:72px; margin-top:16px; padding:12px 14px; border:1px solid var(--border);
+             border-radius:10px; background:rgba(9,9,11,.72); }
+  .outcome.waiting { display:grid; place-items:center; color:var(--faint); font-size:11px; text-align:center; }
+  .outcome-top { display:flex; align-items:center; gap:9px; }
+  .outcome-glyph { display:grid; place-items:center; width:25px; height:25px; }
+  .outcome-glyph .model-icon { width:24px; height:24px; }
+  .outcome-name { font-weight:700; }
+  .outcome-badge { padding:2px 7px; border:1px solid currentColor; border-radius:99px; font-size:9.5px;
+                   letter-spacing:.6px; text-transform:uppercase; }
+  .outcome-pattern { margin-top:5px; color:var(--muted); font-size:10.5px; }
+
+  .pattern-strip { display:grid; grid-template-columns:repeat(6, 1fr); border-top:1px solid var(--border); }
+  .pattern-rule { padding:11px 10px; border-right:1px solid var(--border); text-align:center; color:var(--faint); font-size:9.5px; }
+  .pattern-rule:last-child { border-right:0; }
+  .pattern-rule b { display:block; color:var(--muted); font-size:10.5px; font-weight:500; }
+
+  .lineup { display:flex; justify-content:center; margin:15px 0 4px; }
+  .pcard { display:flex; align-items:center; gap:10px; max-width:520px; padding:9px 14px; border:1px solid var(--border);
+           border-left:3px solid var(--accent); border-radius:10px; background:var(--panel); animation:rise .3s ease both; }
+  .pglyph { display:grid; place-items:center; width:32px; height:32px; border:1px solid var(--border); border-radius:8px;
+            background:var(--panel-2); font-size:17px; }
+  .pglyph .model-icon { width:20px; height:20px; }
+  .pinfo { display:flex; flex-direction:column; min-width:0; line-height:1.45; }
+  .pname { font-size:12.5px; } .psub { color:var(--faint); font-size:10px; }
+  .lineup .none { color:var(--faint); font-size:11.5px; }
+
+  .prompt { margin-top:12px; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); }
+  .prompt:focus-within { border-color:var(--accent-d); }
+  .prompt textarea { width:100%; min-height:26px; max-height:220px; padding:0; resize:none; border:0; outline:0;
+                     background:transparent; color:var(--text); line-height:1.6; }
+  .prompt textarea::placeholder { color:var(--faint); }
+  .promptbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; }
+  .hint { color:var(--faint); font-size:10.5px; }
+  .send { font-weight:700; } .send:not(:disabled) { border-color:var(--accent-d); color:var(--accent); }
+  .save-btn { font-size:11.5px; } .save-btn.done { color:var(--ok); border-color:var(--ok); }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(310px, 1fr)); gap:16px; margin-top:24px; }
+  .card { display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); border-radius:var(--radius);
+          background:var(--panel); animation:rise .35s ease both; }
+  @keyframes rise { from { opacity:0; transform:translateY(9px); } }
+  .card-head { display:flex; align-items:center; gap:9px; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--panel-2); }
+  .card-head .name { font-weight:500; font-size:12.5px; } .card-head .id { color:var(--faint); font-size:10px; }
+  .card-head .name { display:flex; align-items:center; gap:7px; }
+  .card-head .name .model-icon { width:17px; height:17px; }
+  .config-pill { padding:2px 6px; border:1px solid var(--border-2); border-radius:99px; color:var(--muted); font-size:9px; text-transform:uppercase; }
+  .grow { flex:1; }
+  .copy, .up { padding:5px 9px; border-radius:7px; background:transparent; color:var(--muted); font-size:10.5px; }
+  .copy.done { color:var(--ok); border-color:var(--ok); }
+  .up.on { color:#0b0b0d; border-color:var(--accent); background:var(--accent); }
+  .card-body { flex:1; min-height:70px; max-height:380px; overflow:auto; padding:15px 16px; white-space:pre-wrap;
+               word-break:break-word; font-size:13px; scrollbar-width:thin; scrollbar-color:var(--border-2) transparent; }
+  .card-body.err { color:var(--danger); }
+  .loading { color:var(--muted); }
+  .loading .blk { display:inline-block; width:8px; height:14px; margin-right:4px; background:var(--accent);
+                  transform:translateY(2px); animation:blink 1s steps(1) infinite; }
+  .card-meta { display:flex; gap:8px; min-height:30px; align-items:center; padding:7px 16px; border-top:1px solid var(--border);
+               background:var(--panel-2); color:var(--faint); font-size:10.5px; }
+  .card-meta .price { margin-left:auto; color:var(--accent); }
+  .empty { margin-top:34px; color:var(--faint); text-align:center; font-size:11.5px; }
+  .empty pre { margin:0 0 10px; color:var(--border-2); line-height:1.3; }
+
+  .brow { display:flex; align-items:center; gap:10px; padding:7px 0; }
+  .rank { width:22px; color:var(--faint); } .bname { width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .track { flex:1; height:7px; overflow:hidden; border-radius:99px; background:var(--panel-2); }
+  .fill { display:block; height:100%; border-radius:99px; background:var(--accent); }
+  .v { width:30px; color:var(--muted); text-align:right; }
+  .none { color:var(--faint); font-size:11.5px; }
+  .prow { display:flex; gap:10px; padding:9px 0; border-top:1px solid var(--border); }
+  .prow:first-of-type { border-top:0; }
+  .ptext { flex:1; cursor:pointer; white-space:pre-wrap; font-size:12px; }
+  .ptext:hover { color:var(--accent); } .del { cursor:pointer; color:var(--faint); } .del:hover { color:var(--danger); }
+
+  @media (max-width:820px) {
+    .wrap { padding:18px 14px 48px; }
+    header { flex-wrap:wrap; } header .spacer { display:none; }
+    .status { margin-left:auto; }
+    .pattern-strip { grid-template-columns:repeat(3, 1fr); }
+    .pattern-rule:nth-child(3) { border-right:0; }
+    .pattern-rule:nth-child(-n+3) { border-bottom:1px solid var(--border); }
+  }
+  @media (max-width:520px) {
+    .head-btn { padding:5px 8px; } .cost { display:none; }
+    .stage-head { padding:14px 15px; } .stage-sub { display:none; }
+    .stage-main { min-height:0; padding:18px 10px 22px; }
+    .slot-cabinet { padding:9px; border-radius:15px; }
+    .slot-marquee { min-height:86px; margin-inline:4px; padding:19px 6px 9px; }
+    .slot-marquee span { font-size:23px; letter-spacing:3px; }
+    .slot-marquee strong { font-size:12px; letter-spacing:3px; }
+    .slot-screen { padding:8px; }
+    .reel-bank { gap:5px; padding:5px; }
+    .reel { grid-template-rows:repeat(3,64px); gap:3px; padding:3px; }
+    .cell { font-size:29px; }
+    .cell .slot-icon { width:36px; height:36px; }
+    .slot-meter { font-size:8px; }
+    .slot-deck { height:38px; margin-top:8px; }
+    .deck-light { width:30px; height:12px; }
+    .lever { right:-13px; top:104px; width:48px; height:150px; }
+    .lever-base { right:1px; bottom:19px; width:27px; height:60px; }
+    .lever-arm { right:9px; bottom:65px; width:8px; height:78px; }
+    .lever-knob { width:31px; height:31px; top:-17px; }
+    .hint { display:none; }
+    .keyrow { align-items:stretch; flex-direction:column; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    .cell.spinning,.lever.pulled .lever-arm,.slot-cabinet.win-kick,.slot-cabinet.big-win,.slot-cabinet.sol-ultra { animation:none; }
+    .win-particle { display:none; }
+  }
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <span class="mark"><b>merge</b> model arena<span class="caret"></span></span>
-      <span class="spacer"></span>
-      <span class="status cost" id="cost" title="total spend this session">$0.00000</span>
-      <button class="board-btn key-btn" id="keyBtn">🔑 key</button>
-      <button class="board-btn" id="promptsBtn">📌 prompts</button>
-      <button class="board-btn" id="boardBtn">🏆 board</button>
-      <span class="dot" id="dot"></span>
-      <span class="status" id="status">connecting…</span>
-    </header>
+<svg class="icon-sprite" aria-hidden="true" focusable="false">
+  <symbol id="icon-sol" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="7" fill="currentColor" />
+    <path d="M16 2v4M16 26v4M2 16h4M26 16h4M6.1 6.1l2.9 2.9M23 23l2.9 2.9M25.9 6.1L23 9M9 23l-2.9 2.9"
+          fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" />
+  </symbol>
+  <symbol id="icon-terra" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="3.2" />
+    <ellipse cx="16" cy="16" rx="5.5" ry="12" fill="none" stroke="currentColor" stroke-width="2.7" />
+    <path d="M5.2 11.3h21.6M5.2 20.7h21.6" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" />
+  </symbol>
+  <symbol id="icon-luna" viewBox="0 0 32 32">
+    <path d="M25.7 23.2A12.7 12.7 0 1 1 18.8 3.7a10.2 10.2 0 0 0 6.9 19.5Z" fill="currentColor" />
+  </symbol>
+</svg>
+<div class="wrap">
+  <header>
+    <span class="mark"><b>merge</b> model slots<span class="caret"></span></span>
+    <span class="spacer"></span>
+    <span class="status cost" id="cost" title="total spend this session">$0.00000</span>
+    <button class="head-btn key-btn" id="keyBtn">🔑 key</button>
+    <button class="head-btn" id="promptsBtn">📌 prompts</button>
+    <button class="head-btn" id="boardBtn">🏆 board</button>
+    <span class="dot" id="dot"></span>
+    <span class="status" id="status">connecting…</span>
+  </header>
 
-    <div class="board" id="keyPanel" hidden>
-      <h3>merge api key</h3>
-      <div class="keyrow">
-        <input id="keyInput" type="password" autocomplete="off" spellcheck="false"
-               placeholder="paste your Merge API key…" />
-        <button id="keySave">save</button>
-        <button id="keyClear">clear</button>
-      </div>
-      <div class="keynote">
-        Stored only in this browser (localStorage) and sent with each request —
-        the server never saves it. Don't have one? Get a key from your
-        <a href="https://app.merge.dev" target="_blank" rel="noopener">Merge dashboard</a>.
-      </div>
+  <div class="panel" id="keyPanel" hidden>
+    <h3>merge api key</h3>
+    <div class="keyrow">
+      <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="paste your Merge API key…" />
+      <button id="keySave">save</button><button id="keyClear">clear</button>
     </div>
-    <div class="board" id="prompts" hidden></div>
-    <div class="board" id="board" hidden></div>
-    <div class="board" id="picker" hidden>
-      <h3>model picker · <span id="pickCount">0</span> in play
-        <span class="reset" id="pickClose">close</span></h3>
-      <div class="keyrow">
-        <input id="pickSearch" type="text" autocomplete="off" spellcheck="false"
-               placeholder="search models… (click to add / remove)" />
-      </div>
-      <div class="plist" id="pickList"></div>
-    </div>
+    <div class="keynote">Stored only in this browser and sent with each request. Get a key from your
+      <a href="https://app.merge.dev" target="_blank" rel="noopener">Merge dashboard</a>.</div>
+  </div>
+  <div class="panel" id="prompts" hidden></div>
+  <div class="panel" id="leaderboard" hidden></div>
 
-    <div class="controls">
-      <span class="lbl">models</span>
-      <input class="num" id="count" type="number" min="1" max="6" value="3" />
-      <button class="roll" id="roll">↻ roll</button>
-      <button id="pickBtn">☰ pick</button>
-      <button id="allFable">🎭 6× Fable 5</button>
-    </div>
-    <div class="lineup" id="chips"></div>
-
-    <div class="prompt">
-      <textarea id="input" rows="1"
-        placeholder="Write a scroll-stopping LinkedIn hook about shipping your first AI feature…"></textarea>
-      <div class="promptbar">
-        <span class="hint">enter to send · shift+enter for newline</span>
-        <span style="display:flex; gap:8px;">
-          <button class="save-btn" id="save" disabled>💾 save</button>
-          <button class="send" id="send" disabled>send →</button>
-        </span>
+  <section class="slot-stage" aria-labelledby="slotsTitle">
+    <div class="stage-head">
+      <div>
+        <div class="eyebrow">model selection machine</div>
+        <div class="stage-title" id="slotsTitle">Hit a pattern. Let the slots pick.</div>
+        <div class="stage-sub">The matching symbol selects the model; the strongest payline sets its reasoning effort.</div>
       </div>
     </div>
+    <div class="stage-main">
+      <div class="slot-zone">
+        <div class="slot-cabinet" id="slotCabinet">
+          <div class="particle-layer" id="particles" aria-hidden="true"></div>
+          <button class="lever" id="lever" aria-label="Pull the slot machine lever down to spin">
+            <span class="lever-base"></span><span class="lever-arm"><span class="lever-knob"></span></span>
+          </button>
+          <div class="slot-marquee"><span>model</span><strong>jackpot</strong><small>sol / terra / luna</small></div>
+          <div class="slot-screen">
+            <div class="reel-bank" id="slotBank" role="button" tabindex="0" aria-label="Spin the model slots">
+              <span class="payline" aria-hidden="true"></span>
+              <div class="reel" data-reel="0">
+                <div class="cell" data-index="0"></div><div class="cell" data-index="3"></div><div class="cell" data-index="6"></div>
+              </div>
+              <div class="reel" data-reel="1">
+                <div class="cell" data-index="1"></div><div class="cell" data-index="4"></div><div class="cell" data-index="7"></div>
+              </div>
+              <div class="reel" data-reel="2">
+                <div class="cell" data-index="2"></div><div class="cell" data-index="5"></div><div class="cell" data-index="8"></div>
+              </div>
+            </div>
+            <div class="slot-meter"><span>credits ∞</span><span>bet: model</span><span id="spinProgress">ready</span></div>
+          </div>
+          <div class="slot-deck" aria-hidden="true">
+            <span class="deck-light red"></span><span class="deck-light gold"></span>
+            <span class="deck-light gold"></span><span class="deck-light red"></span>
+          </div>
+        </div>
+        <div class="slot-actions">
+          <button class="spin-btn" id="roll">▶ pull lever</button>
+          <button id="clearBoard">reset</button>
+        </div>
+        <div class="legend" aria-label="model legend">
+          <span><svg class="model-icon legend-icon sol"><use href="#icon-sol"></use></svg>Sol</span>
+          <span><svg class="model-icon legend-icon terra"><use href="#icon-terra"></use></svg>Terra</span>
+          <span><svg class="model-icon legend-icon luna"><use href="#icon-luna"></use></svg>Luna</span>
+        </div>
+        <div class="outcome waiting" id="outcome">Pull the lever to generate a model configuration.</div>
+      </div>
+    </div>
+    <div class="pattern-strip" aria-label="pattern rules">
+      <div class="pattern-rule"><b>pair</b>low</div>
+      <div class="pattern-rule"><b>street / column</b>medium</div>
+      <div class="pattern-rule"><b>diagonal</b>high</div>
+      <div class="pattern-rule"><b>double line</b>x-high</div>
+      <div class="pattern-rule"><b>+ cross</b>max</div>
+      <div class="pattern-rule"><b>× eclipse</b>max · pro</div>
+    </div>
+  </section>
 
-    <div class="grid" id="grid"></div>
+  <div class="lineup" id="chips"></div>
 
-    <div class="empty" id="empty">
-<pre>   ____ ____ ____ ____ ____
-  ||r |||o |||l |||l |||  ||
-  ||__|||__|||__|||__|||__||
-  |/__\|/__\|/__\|/__\|/__\|</pre>
-      <b>roll a few models, type a prompt, and compare hooks side by side.</b>
+  <div class="prompt">
+    <textarea id="input" rows="1" placeholder="Ask the selected model anything…"></textarea>
+    <div class="promptbar">
+      <span class="hint">enter to send · shift+enter for newline</span>
+      <span style="display:flex;gap:8px"><button class="save-btn" id="save" disabled>💾 save</button>
+      <button class="send" id="send" disabled>send →</button></span>
     </div>
   </div>
 
-  <div class="overlay" id="rollOverlay" hidden>
-    <div class="slotbox">
-      <pre class="slot-art"> .-----------------------------------.
-(  *  m o d e l   r o u l e t t e  *  )
- '-----------------------------------'</pre>
-      <div class="reelrow" id="reelRow"></div>
-      <pre class="slot-foot">~ click anywhere to skip the spin ~</pre>
-    </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty">
+<pre>  ┌─────┬─────┬─────┐
+  │ SOL │TERRA│LUNA │
+  └─────┴─────┴─────┘</pre>
+    Pull the lever, then send your prompt.
   </div>
+</div>
 
 <script>
-const SYSTEM = "You are a concise, punchy copywriter. Write scroll-stopping, authentic LinkedIn hooks. No hashtags unless asked. No emojis unless asked.";
-let CATALOG = [];          // [{id, name}]
-let inPlay = [];           // [{id, name}]
+const SYSTEM = "You are a capable, direct assistant. Solve the user's task accurately and clearly. Match the requested format and level of detail.";
+const FAMILY = {
+  sol:   { key:"sol",   slug:"gpt-5.6-sol",   fallbackId:"openai/gpt-5.6-sol",   name:"GPT-5.6 Sol",   color:"#f5b84b" },
+  terra: { key:"terra", slug:"gpt-5.6-terra", fallbackId:"openai/gpt-5.6-terra", name:"GPT-5.6 Terra", color:"#64d39b" },
+  luna:  { key:"luna",  slug:"gpt-5.6-luna",  fallbackId:"openai/gpt-5.6-luna",  name:"GPT-5.6 Luna",  color:"#a897ff" },
+};
+const SYMBOL_KEYS = ["sol","terra","luna"];
+const EFFORT_LABEL = { none:"instant", low:"low", medium:"medium", high:"high", xhigh:"x-high", max:"max" };
+const ROWS = [[0,1,2],[3,4,5],[6,7,8]], COLS = [[0,3,6],[1,4,7],[2,5,8]];
+const DIAGS = [[0,4,8],[2,4,6]], PLUS = [1,3,4,5,7], ECLIPSE = [0,2,4,6,8];
+const ADJACENT = [[0,1],[1,2],[3,4],[4,5],[6,7],[7,8],[0,3],[3,6],[1,4],[4,7],[2,5],[5,8]];
 
-const LB_KEY = "merge.arena.leaderboard";
-let votes = loadVotes();   // { id: {name, votes} }
-let sessionCost = 0;       // running $ spend since page load
+const $ = id => document.getElementById(id);
+const dot=$("dot"), status=$("status"), keyPanel=$("keyPanel"), keyBtn=$("keyBtn"),
+      keyInput=$("keyInput"), promptsPanel=$("prompts"), leaderboard=$("leaderboard"),
+      chips=$("chips"), input=$("input"), send=$("send"), save=$("save"), grid=$("grid"), empty=$("empty"),
+      slotBank=$("slotBank"), rollBtn=$("roll"), reels=[...document.querySelectorAll(".reel")],
+      cells=Array.from({length:9},(_,i)=>document.querySelector(`[data-index="${i}"]`)), outcome=$("outcome"),
+      cabinet=$("slotCabinet"), lever=$("lever"), particles=$("particles");
 
-function addCost(c) {
-  if (typeof c !== "number") return;
-  sessionCost += c;
-  document.getElementById("cost").textContent = "$" + sessionCost.toFixed(5);
+let CATALOG=[], inPlay=[], boardCells=Array(9).fill(null), rolling=false, sessionCost=0, actx=null;
+const KEY_KEY="merge.arena.apikey", LB_KEY="merge.slots.leaderboard", PROMPTS_KEY="merge.arena.prompts";
+let apiKey=localStorage.getItem(KEY_KEY)||"", votes=loadJSON(LB_KEY,{}), prompts=loadJSON(PROMPTS_KEY,[]);
+
+function loadJSON(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } }
+function modelIcon(key,className="") { return `<svg class="model-icon ${className}" aria-hidden="true"><use href="#icon-${key}"></use></svg>`; }
+function hidePanels() { keyPanel.hidden=promptsPanel.hidden=leaderboard.hidden=true; }
+function keyHeaders(extra={}) { return apiKey ? {...extra,"X-Merge-Key":apiKey} : extra; }
+function refreshKeyBtn() { keyBtn.classList.toggle("haskey",!!apiKey); keyBtn.textContent=apiKey?"🔑 key ✓":"🔑 key"; }
+function openKeyPanel() { hidePanels(); keyPanel.hidden=false; keyInput.value=apiKey; keyInput.focus(); }
+function addCost(cost) { if(typeof cost!=="number")return; sessionCost+=cost; $("cost").textContent="$"+sessionCost.toFixed(5); }
+
+keyBtn.addEventListener("click",()=>keyPanel.hidden?openKeyPanel():keyPanel.hidden=true);
+$("keySave").addEventListener("click",()=>{ apiKey=keyInput.value.trim(); apiKey?localStorage.setItem(KEY_KEY,apiKey):localStorage.removeItem(KEY_KEY); refreshKeyBtn(); keyPanel.hidden=true; init(); });
+$("keyClear").addEventListener("click",()=>{ apiKey=""; keyInput.value=""; localStorage.removeItem(KEY_KEY); refreshKeyBtn(); init(); });
+keyInput.addEventListener("keydown",e=>{ if(e.key==="Enter") $("keySave").click(); });
+
+function catalogModel(key) {
+  const family=FAMILY[key], slug=family.slug.toLowerCase();
+  return CATALOG.find(m=>{ const id=m.id.toLowerCase(); return id===slug || id.endsWith("/"+slug) || id.includes(slug); });
 }
 
-const $ = (id) => document.getElementById(id);
-const dot = $("dot"), status = $("status"), chips = $("chips"),
-      input = $("input"), send = $("send"), grid = $("grid"), empty = $("empty"),
-      board = $("board"), boardBtn = $("boardBtn"),
-      promptsPanel = $("prompts"), promptsBtn = $("promptsBtn"), save = $("save"),
-      keyPanel = $("keyPanel"), keyBtn = $("keyBtn"),
-      keyInput = $("keyInput"), keySave = $("keySave"), keyClear = $("keyClear"),
-      picker = $("picker"), pickBtn = $("pickBtn"), pickSearch = $("pickSearch"),
-      pickList = $("pickList"), pickCount = $("pickCount");
-
-function hidePanels() {
-  board.hidden = promptsPanel.hidden = keyPanel.hidden = picker.hidden = true;
+function resolvedModel(key) {
+  const family=FAMILY[key], found=catalogModel(key);
+  return found ? {...found} : {id:family.fallbackId,name:family.name,price:null};
 }
 
-/* ---- bring-your-own API key (persisted in localStorage) ---- */
-const KEY_KEY = "merge.arena.apikey";
-let apiKey = localStorage.getItem(KEY_KEY) || "";
-
-function keyHeaders(extra = {}) {
-  return apiKey ? { ...extra, "X-Merge-Key": apiKey } : extra;
-}
-function refreshKeyBtn() {
-  keyBtn.classList.toggle("haskey", !!apiKey);
-  keyBtn.textContent = apiKey ? "🔑 key ✓" : "🔑 key";
-}
-function openKeyPanel() {
-  hidePanels();
-  keyPanel.hidden = false;
-  keyInput.value = apiKey;
-  keyInput.focus();
-}
-keyBtn.addEventListener("click", () => {
-  if (keyPanel.hidden) openKeyPanel(); else keyPanel.hidden = true;
-});
-keySave.addEventListener("click", () => {
-  apiKey = keyInput.value.trim();
-  if (apiKey) localStorage.setItem(KEY_KEY, apiKey);
-  else localStorage.removeItem(KEY_KEY);
-  refreshKeyBtn();
-  keyPanel.hidden = true;
-  init();   // reconnect with the new key
-});
-keyClear.addEventListener("click", () => {
-  apiKey = ""; keyInput.value = "";
-  localStorage.removeItem(KEY_KEY);
-  refreshKeyBtn();
-  init();
-});
-keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") keySave.click(); });
-
-/* ---- leaderboard (persisted in localStorage) ---- */
-function loadVotes() {
-  try { return JSON.parse(localStorage.getItem(LB_KEY)) || {}; }
-  catch { return {}; }
-}
-function saveVotes() { localStorage.setItem(LB_KEY, JSON.stringify(votes)); }
-
-function addVote(id, name, delta) {
-  const row = votes[id] || (votes[id] = { name, votes: 0 });
-  row.name = name;
-  row.votes = Math.max(0, row.votes + delta);
-  if (row.votes === 0) delete votes[id];
-  saveVotes();
-  if (!board.hidden) renderBoard();
+function resetBoard(clearSelection=true) {
+  boardCells=Array(9).fill(null);
+  const idle=["sol","terra","luna","luna","sol","terra","terra","luna","sol"];
+  cells.forEach((c,i)=>{ c.innerHTML=modelIcon(idle[i],"slot-icon");c.className=`cell idle ${idle[i]}`; });
+  reels.forEach(r=>r.classList.remove("spinning"));
+  cabinet.classList.remove("win-kick","big-win","sol-ultra"); particles.innerHTML="";
+  $("spinProgress").textContent="ready";
+  outcome.className="outcome waiting"; outcome.textContent="Pull the lever to generate a model configuration.";
+  if(clearSelection){ inPlay=[]; renderChips(); }
+  send.disabled=!input.value.trim() || !inPlay.length;
 }
 
-function renderBoard() {
-  const rows = Object.entries(votes).sort((a, b) => b[1].votes - a[1].votes);
-  const max = rows.length ? rows[0][1].votes : 1;
-  const total = rows.reduce((s, [, r]) => s + r.votes, 0);
-  let html = `<h3>leaderboard · ${total} like${total === 1 ? "" : "s"}` +
-             `<span class="reset" id="lbReset">reset</span></h3>`;
-  if (!rows.length) {
-    html += `<div class="none">No likes yet — 👍 the hooks you'd actually post.</div>`;
-  } else {
-    rows.forEach(([, r], i) => {
-      html += `<div class="brow"><span class="rank">${i + 1}</span>` +
-        `<span class="bname">${r.name}</span>` +
-        `<span class="track"><span class="fill" style="width:${(r.votes / max) * 100}%"></span></span>` +
-        `<span class="v">${r.votes}</span></div>`;
-    });
+function renderCell(index,key) {
+  const c=cells[index], f=FAMILY[key];
+  c.className=`cell stopped ${key}`; c.innerHTML=modelIcon(key,"slot-icon"); c.setAttribute("aria-label",`${index+1}: ${f.name}`);
+}
+
+function renderSpinningCell(index,key) {
+  const c=cells[index];
+  c.className=`cell spinning ${key}`; c.innerHTML=modelIcon(key,"slot-icon");
+}
+
+function same(indices) {
+  const key=boardCells[indices[0]];
+  return key && indices.every(i=>boardCells[i]===key) ? key : null;
+}
+
+function choose(candidates) {
+  return candidates.sort((a,b)=>b.priority-a.priority || Number(b.indices.includes(8))-Number(a.indices.includes(8)))[0];
+}
+
+function evaluateBoard() {
+  const candidates=[];
+  const allKey=same([0,1,2,3,4,5,6,7,8]);
+  if(allKey) candidates.push({family:allKey,effort:"max",pro:true,pattern:"nine-symbol jackpot",indices:[0,1,2,3,4,5,6,7,8],priority:7});
+  const eclipse=same(ECLIPSE); if(eclipse) candidates.push({family:eclipse,effort:"max",pro:true,pattern:"eclipse cross",indices:ECLIPSE,priority:6});
+  const plus=same(PLUS); if(plus) candidates.push({family:plus,effort:"max",pro:false,pattern:"plus cross",indices:PLUS,priority:5});
+
+  for(const key of Object.keys(FAMILY)) {
+    const matching=[...ROWS,...COLS,...DIAGS].filter(line=>same(line)===key);
+    if(matching.length>=2) candidates.push({family:key,effort:"xhigh",pro:false,pattern:"double line",indices:[...new Set(matching.flat())],priority:4});
   }
-  board.innerHTML = html;
-  $("lbReset").addEventListener("click", () => {
-    if (confirm("Clear the leaderboard?")) { votes = {}; saveVotes(); renderBoard(); }
-  });
-}
+  for(const line of DIAGS) { const key=same(line); if(key) candidates.push({family:key,effort:"high",pro:false,pattern:"diagonal",indices:line,priority:3}); }
+  for(const line of [...ROWS,...COLS]) { const key=same(line); if(key) candidates.push({family:key,effort:"medium",pro:false,pattern:ROWS.includes(line)?"street":"column",indices:line,priority:2}); }
+  for(const pair of ADJACENT) { const key=same(pair); if(key) candidates.push({family:key,effort:"low",pro:false,pattern:"adjacent pair",indices:pair,priority:1}); }
 
-boardBtn.addEventListener("click", () => {
-  const open = board.hidden;
-  hidePanels();
-  if (open) { board.hidden = false; renderBoard(); }
-});
-
-/* ---- saved prompts (persisted in localStorage) ---- */
-const PROMPTS_KEY = "merge.arena.prompts";
-let prompts = loadPrompts();   // [string], newest first
-
-function loadPrompts() {
-  try { return JSON.parse(localStorage.getItem(PROMPTS_KEY)) || []; }
-  catch { return []; }
-}
-function savePrompts() { localStorage.setItem(PROMPTS_KEY, JSON.stringify(prompts)); }
-
-function addPrompt(text) {
-  text = text.trim();
-  if (!text) return;
-  prompts = [text, ...prompts.filter(p => p !== text)];   // dedupe, newest first
-  savePrompts();
-  if (!promptsPanel.hidden) renderPrompts();
-}
-
-function renderPrompts() {
-  let html = `<h3>saved prompts · ${prompts.length}` +
-             (prompts.length ? `<span class="reset" id="pReset">clear all</span>` : ``) + `</h3>`;
-  if (!prompts.length) {
-    html += `<div class="none">No saved prompts yet — write one and hit 💾 save.</div>`;
-  } else {
-    prompts.forEach((_, i) => {
-      html += `<div class="prow"><span class="ptext" data-i="${i}"></span>` +
-              `<span class="del" data-i="${i}" title="delete">×</span></div>`;
-    });
+  if(!candidates.length) {
+    const counts=Object.keys(FAMILY).map(key=>({key,count:boardCells.filter(v=>v===key).length,last:boardCells.lastIndexOf(key)}));
+    counts.sort((a,b)=>b.count-a.count || b.last-a.last);
+    const winner=counts[0];
+    candidates.push({family:winner.key,effort:"none",pro:false,pattern:"plurality fallback",indices:boardCells.map((v,i)=>v===winner.key?i:-1).filter(i=>i>=0),priority:0});
   }
-  promptsPanel.innerHTML = html;
-  // textContent (not innerHTML) so saved prompt text can't inject markup
-  promptsPanel.querySelectorAll(".ptext").forEach(el => {
-    el.textContent = prompts[+el.dataset.i];
-    el.addEventListener("click", () => {
-      input.value = prompts[+el.dataset.i];
-      autosize();
-      send.disabled = save.disabled = false;
-      promptsPanel.hidden = true;
-      input.focus();
-    });
-  });
-  promptsPanel.querySelectorAll(".del").forEach(el => {
-    el.addEventListener("click", () => { prompts.splice(+el.dataset.i, 1); savePrompts(); renderPrompts(); });
-  });
-  const clr = $("pReset");
-  if (clr) clr.addEventListener("click", () => {
-    if (confirm("Clear all saved prompts?")) { prompts = []; savePrompts(); renderPrompts(); }
-  });
+  return choose(candidates);
 }
 
-promptsBtn.addEventListener("click", () => {
-  const open = promptsPanel.hidden;
-  hidePanels();
-  if (open) { promptsPanel.hidden = false; renderPrompts(); }
-});
+function blip(freq,dur=.07,type="triangle",gain=.035) {
+  try { actx=actx||new(window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended")actx.resume();
+    const o=actx.createOscillator(),g=actx.createGain(); o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(gain,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+dur);o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+dur);
+  } catch {}
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-save.addEventListener("click", () => {
-  if (!input.value.trim()) return;
-  addPrompt(input.value);
-  save.textContent = "saved ✓"; save.classList.add("done");
-  setTimeout(() => { save.textContent = "💾 save"; save.classList.remove("done"); }, 1400);
-});
+const randomSymbol=()=>SYMBOL_KEYS[(Math.random()*SYMBOL_KEYS.length)|0];
 
-function pick(n) {
-  const pool = [...CATALOG];
-  for (let i = pool.length - 1; i > 0; i--) {        // Fisher–Yates
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+function isSolUltra(result) {
+  return result.family==="sol" && (result.effort==="xhigh" || result.effort==="max" || result.pro);
+}
+
+function celebrate(result) {
+  const family=FAMILY[result.family], ultra=isSolUltra(result);
+  const big=ultra || result.pro || ["high","xhigh","max"].includes(result.effort);
+  cabinet.classList.remove("win-kick","big-win","sol-ultra");
+  void cabinet.offsetWidth;
+  cabinet.classList.add(ultra?"sol-ultra":big?"big-win":"win-kick");
+
+  particles.innerHTML="";
+  const count=ultra?58:big?34:16, colors=[family.color,"#ffd469","#fff0b0"];
+  for(let i=0;i<count;i++) {
+    const p=document.createElement("span"), angle=Math.random()*Math.PI*2;
+    const distance=(ultra?130:big?100:70)+Math.random()*(ultra?150:90);
+    p.className="win-particle";
+    p.style.setProperty("--particle",colors[i%colors.length]);
+    p.style.setProperty("--x",`${Math.cos(angle)*distance}px`);
+    p.style.setProperty("--y",`${Math.sin(angle)*distance-35-Math.random()*70}px`);
+    p.style.setProperty("--scale",(.55+Math.random()*1.25).toFixed(2));
+    p.style.setProperty("--rot",`${Math.round(Math.random()*620-310)}deg`);
+    p.style.setProperty("--delay",`${Math.round(Math.random()*130)}ms`);
+    p.style.setProperty("--duration",`${680+Math.round(Math.random()*520)}ms`);
+    p.style.width=p.style.height=`${5+Math.round(Math.random()*7)}px`;
+    if(i%4===0)p.style.borderRadius="50%";
+    particles.appendChild(p);
   }
-  return pool.slice(0, Math.max(1, Math.min(n, pool.length)));
+  setTimeout(()=>{particles.innerHTML="";cabinet.classList.remove("win-kick","big-win","sol-ultra");},1500);
 }
 
-// one color per slot — the lineup card and its answer card share it
-const PALETTE = ["#7dd3fc", "#f0abfc", "#86efac", "#fcd34d", "#a5b4fc", "#fda4af", "#5eead4", "#fdba74"];
-const slotColor = (i) => PALETTE[i % PALETTE.length];
+async function spinSlots() {
+  if(rolling)return;
+  rolling=true; resetBoard(true); hidePanels();
+  rollBtn.disabled=true; lever.disabled=true; lever.classList.remove("pulled"); void lever.offsetWidth; lever.classList.add("pulled");
+  setTimeout(()=>lever.classList.remove("pulled"),680);
+  rollBtn.classList.add("rolling"); send.disabled=true; $("clearBoard").disabled=true;
+  rollBtn.textContent="▥ reels spinning"; $("spinProgress").textContent="spinning";
+
+  const resultBoard=Array.from({length:9},randomSymbol);
+  const timers=reels.map((reel,column)=>{
+    reel.classList.add("spinning");
+    const indices=[column,column+3,column+6];
+    return setInterval(()=>{
+      indices.forEach(i=>renderSpinningCell(i,randomSymbol()));
+      blip(1700+Math.random()*260,.018,"square",.007);
+    },72);
+  });
+
+  await sleep(820);
+  for(let column=0;column<3;column++) {
+    clearInterval(timers[column]);
+    const indices=[column,column+3,column+6];
+    indices.forEach(i=>{boardCells[i]=resultBoard[i];renderCell(i,resultBoard[i]);});
+    reels[column].classList.remove("spinning");
+    $("spinProgress").textContent=`reel ${column+1} / 3`;
+    blip(390+column*120,.12,"triangle",.045);
+    await sleep(column<2?430:180);
+  }
+  const result=evaluateBoard(); result.indices.forEach(i=>cells[i].classList.add("winner"));
+  const family=FAMILY[result.family], model=resolvedModel(result.family);
+  inPlay=[{...model,family:result.family,color:family.color,effort:result.effort,mode:result.pro?"pro":null,pattern:result.pattern}];
+  renderChips(); renderOutcome(result); celebrate(result); blip(620,.12); setTimeout(()=>blip(result.pro?980:820,.17),100);
+  $("spinProgress").textContent=isSolUltra(result)?"sol ultra":"winner"; rollBtn.textContent="▶ spin again"; rollBtn.disabled=false; lever.disabled=false;
+  rollBtn.classList.remove("rolling"); $("clearBoard").disabled=false;
+  send.disabled=!input.value.trim(); rolling=false;
+}
+
+function renderOutcome(result) {
+  const f=FAMILY[result.family], mode=result.pro?" · pro":"";
+  outcome.className="outcome"; outcome.style.color=f.color;
+  const name=isSolUltra(result)?"GPT-5.6 SOL ULTRA":f.name;
+  outcome.innerHTML=`<div class="outcome-top"><span class="outcome-glyph">${modelIcon(result.family)}</span><span class="outcome-name">${name}</span>`+
+    `<span class="outcome-badge">${EFFORT_LABEL[result.effort]}${mode}</span></div>`+
+    `<div class="outcome-pattern">${result.pattern} payout · winning slots ${result.indices.map(i=>i+1).join(" · ")}</div>`;
+}
 
 function renderChips() {
-  chips.innerHTML = "";
-  inPlay.forEach((m, i) => {
-    const color = slotColor(i);
-    const card = document.createElement("div");
-    card.className = "pcard";
-    card.style.borderLeftColor = color;
-    card.style.animationDelay = (i * 45) + "ms";
-
-    const num = document.createElement("span");
-    num.className = "pnum"; num.textContent = `#${i + 1}`; num.style.color = color;
-    const glyph = document.createElement("span");
-    glyph.className = "pglyph"; glyph.textContent = glyphFor(m.id);
-    const info = document.createElement("span");
-    info.className = "pinfo";
-    const name = document.createElement("span");
-    name.className = "pname"; name.textContent = m.name; name.title = m.id;
-    const sub = document.createElement("span");
-    sub.className = "psub";
-    sub.textContent = m.price ? `$${m.price.in} in · $${m.price.out} out per M` : m.id;
-    info.append(name, sub);
-
-    const x = document.createElement("span");
-    x.className = "x"; x.textContent = "×"; x.title = "remove";
-    x.addEventListener("click", () => {
-      inPlay.splice(i, 1);
-      renderChips();
-      if (!picker.hidden) renderPickList();
-    });
-
-    card.append(num, glyph, info, x);
-    chips.appendChild(card);
-  });
-  if (!inPlay.length) {
-    const none = document.createElement("span");
-    none.className = "none";
-    none.textContent = "no models in play — ↻ roll or ☰ pick some";
-    chips.appendChild(none);
-  }
-  pickCount.textContent = inPlay.length;
+  chips.innerHTML="";
+  if(!inPlay.length){ const none=document.createElement("span");none.className="none";none.textContent="no model selected — pull the lever";chips.appendChild(none);return; }
+  const m=inPlay[0], card=document.createElement("div"); card.className="pcard";card.style.borderLeftColor=m.color;
+  const price=m.price?` · $${m.price.in}/$${m.price.out} per M`:"";
+  card.innerHTML=`<span class="pglyph" style="color:${m.color}">${modelIcon(m.family)}</span><span class="pinfo">`+
+    `<span class="pname">${m.name} · ${EFFORT_LABEL[m.effort]}${m.mode?" · pro":""}</span>`+
+    `<span class="psub">${m.pattern} · ${m.id}${price}</span></span>`;
+  chips.appendChild(card);
 }
 
-/* ---- slot-machine roll ---- */
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const DICE = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
-let rolling = false;
-let actx = null;
+rollBtn.addEventListener("click",spinSlots);
+lever.addEventListener("click",spinSlots);
+slotBank.addEventListener("click",spinSlots);
+slotBank.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();spinSlots();}});
+$("clearBoard").addEventListener("click",()=>resetBoard(true));
 
-// vendor "logos" — one glyph per provider, 🎲 for anyone we don't know yet
-const VENDOR_GLYPHS = {
-  anthropic: "✴️", openai: "⬡", google: "✦", "meta-llama": "🦙", meta: "🦙",
-  "deepseek-ai": "🐋", deepseek: "🐋", mistralai: "🌪️", mistral: "🌪️",
-  amazon: "📦", cohere: "⌘", xai: "✖️", qwen: "☁️", alibaba: "☁️",
-  "z-ai": "⚡", zhipuai: "⚡", moonshotai: "🌙", nvidia: "▲", microsoft: "🪟",
-  ai21: "🅰️", perplexity: "🔮",
-};
-const glyphFor = (id) => VENDOR_GLYPHS[id.split("/")[0].toLowerCase()] || "🎲";
+function saveVotes(){localStorage.setItem(LB_KEY,JSON.stringify(votes));}
+function addVote(m,delta){const id=`${m.id}::${m.effort}::${m.mode||"standard"}`,name=`${m.name} · ${EFFORT_LABEL[m.effort]}${m.mode?" · pro":""}`;
+  const row=votes[id]||(votes[id]={name,votes:0});row.name=name;row.votes=Math.max(0,row.votes+delta);if(!row.votes)delete votes[id];saveVotes();if(!leaderboard.hidden)renderLeaderboard();}
+function renderLeaderboard(){const rows=Object.values(votes).sort((a,b)=>b.votes-a.votes),max=rows[0]?.votes||1,total=rows.reduce((s,r)=>s+r.votes,0);
+  leaderboard.innerHTML=`<h3>configuration board · ${total} like${total===1?"":"s"}<span class="reset" id="lbReset">reset</span></h3>`+
+    (rows.length?rows.map((r,i)=>`<div class="brow"><span class="rank">${i+1}</span><span class="bname">${r.name}</span><span class="track"><span class="fill" style="width:${r.votes/max*100}%"></span></span><span class="v">${r.votes}</span></div>`).join(""):`<div class="none">No likes yet — vote for configurations that deliver.</div>`);
+  $("lbReset").addEventListener("click",()=>{if(confirm("Clear the leaderboard?")){votes={};saveVotes();renderLeaderboard();}});}
+$("boardBtn").addEventListener("click",()=>{const open=leaderboard.hidden;hidePanels();if(open){leaderboard.hidden=false;renderLeaderboard();}});
 
-function blip(freq, dur = 0.07, type = "triangle", gain = 0.04) {
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === "suspended") actx.resume();
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(gain, actx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
-    o.connect(g); g.connect(actx.destination);
-    o.start(); o.stop(actx.currentTime + dur);
-  } catch { /* no audio? no problem */ }
-}
+function savePrompts(){localStorage.setItem(PROMPTS_KEY,JSON.stringify(prompts));}
+function renderPrompts(){promptsPanel.innerHTML=`<h3>saved prompts · ${prompts.length}${prompts.length?'<span class="reset" id="pReset">clear all</span>':""}</h3>`+
+  (prompts.length?prompts.map((_,i)=>`<div class="prow"><span class="ptext" data-i="${i}"></span><span class="del" data-i="${i}">×</span></div>`).join(""):`<div class="none">No saved prompts yet.</div>`);
+  promptsPanel.querySelectorAll(".ptext").forEach(el=>{el.textContent=prompts[+el.dataset.i];el.onclick=()=>{input.value=prompts[+el.dataset.i];autosize();send.disabled=!inPlay.length;save.disabled=false;promptsPanel.hidden=true;input.focus();};});
+  promptsPanel.querySelectorAll(".del").forEach(el=>el.onclick=()=>{prompts.splice(+el.dataset.i,1);savePrompts();renderPrompts();});
+  if($("pReset"))$("pReset").onclick=()=>{if(confirm("Clear all saved prompts?")){prompts=[];savePrompts();renderPrompts();}};}
+$("promptsBtn").addEventListener("click",()=>{const open=promptsPanel.hidden;hidePanels();if(open){promptsPanel.hidden=false;renderPrompts();}});
+save.addEventListener("click",()=>{const text=input.value.trim();if(!text)return;prompts=[text,...prompts.filter(p=>p!==text)];savePrompts();save.textContent="saved ✓";save.classList.add("done");setTimeout(()=>{save.textContent="💾 save";save.classList.remove("done");},1300);});
 
-function sparkleBurst(anchor) {
-  const burst = document.createElement("span");
-  burst.className = "sparkle";
-  for (let i = 0; i < 6; i++) {
-    const s = document.createElement("span");
-    s.textContent = ["✨", "⭐", "🎉"][i % 3];
-    const a = (i / 6) * 2 * Math.PI + Math.random();
-    s.style.setProperty("--dx", `${Math.cos(a) * (28 + Math.random() * 22)}px`);
-    s.style.setProperty("--dy", `${Math.sin(a) * (24 + Math.random() * 18) - 14}px`);
-    burst.appendChild(s);
-  }
-  anchor.appendChild(burst);
-  setTimeout(() => burst.remove(), 900);
-}
+function autosize(){input.style.height="auto";input.style.height=Math.min(input.scrollHeight,220)+"px";}
+function cardFor(m){const card=document.createElement("div");card.className="card";card.style.borderTop=`2px solid ${m.color}`;
+  card.innerHTML=`<div class="card-head"><span class="name" style="color:${m.color}">${modelIcon(m.family)}${m.name}</span>`+
+    `<span class="config-pill">${EFFORT_LABEL[m.effort]}${m.mode?" · pro":""}</span><span class="id">${m.id}</span><span class="grow"></span>`+
+    `<button class="up" disabled>👍 like</button><button class="copy" disabled>copy</button></div>`+
+    `<div class="card-body loading"><span class="blk"></span> thinking…</div><div class="card-meta"></div>`;return card;}
+function attachCopy(btn,getText){btn.onclick=async()=>{try{await navigator.clipboard.writeText(getText());btn.textContent="copied ✓";btn.classList.add("done");setTimeout(()=>{btn.textContent="copy";btn.classList.remove("done");},1300);}catch{btn.textContent="press ⌘C";}};}
+function attachUp(btn,m){let on=false;btn.onclick=()=>{on=!on;btn.classList.toggle("on",on);btn.textContent=on?"👍 liked":"👍 like";addVote(m,on?1:-1);};}
 
-async function roll(animate = false) {
-  if (!CATALOG.length || rolling) return;
-  const n = parseInt($("count").value, 10) || 3;
-  const result = pick(n);
+async function streamOne(m,messages,body){const res=await fetch("/api/chat/stream",{method:"POST",headers:keyHeaders({"Content-Type":"application/json"}),
+  body:JSON.stringify({model:m.id,messages,effort:m.effort,mode:m.mode})});
+  if(!res.ok||!res.body){const data=await res.json().catch(()=>({}));if(data.need_key)openKeyPanel();throw new Error(data.error||`HTTP ${res.status}`);}
+  const reader=res.body.getReader(),dec=new TextDecoder();let buf="",out="",usage={},cost=null;
+  for(;;){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
+    while((i=buf.indexOf("\n\n"))>=0){const chunk=buf.slice(0,i);buf=buf.slice(i+2);for(const line of chunk.split("\n")){if(!line.startsWith("data: "))continue;
+      const data=JSON.parse(line.slice(6));if(data.error){if(data.need_key)openKeyPanel();throw new Error(data.error);}if(typeof data.text==="string"){out=data.text;body.classList.remove("loading");body.textContent=out;body.scrollTop=body.scrollHeight;}if(data.done){usage=data.usage||{};cost=data.cost;}}}}
+  return{out:out.trim()||"(no response)",usage,cost};}
 
-  if (!animate) {                      // instant path (page load)
-    inPlay = result;
-    renderChips();
-    if (!picker.hidden) renderPickList();
-    return;
-  }
+async function run(){const text=input.value.trim();if(!text||!inPlay.length)return;empty.style.display="none";grid.innerHTML="";send.disabled=true;
+  const m=inPlay[0],card=cardFor(m);grid.appendChild(card);const body=card.querySelector(".card-body"),copy=card.querySelector(".copy"),up=card.querySelector(".up"),meta=card.querySelector(".card-meta");
+  try{const{out,usage,cost}=await streamOne(m,[{role:"system",content:SYSTEM},{role:"user",content:text}],body);body.textContent=out;body.classList.remove("loading");copy.disabled=up.disabled=false;attachCopy(copy,()=>out);attachUp(up,m);
+    meta.innerHTML=`${usage.input_tokens??"?"} in · ${usage.output_tokens??"?"} out${typeof cost==="number"?`<span class="price">$${cost.toFixed(5)}</span>`:""}`;addCost(cost);
+  }catch(err){body.textContent="⚠ "+err.message;body.classList.remove("loading");body.classList.add("err");}finally{send.disabled=!input.value.trim()||!inPlay.length;}}
+input.addEventListener("input",()=>{autosize();save.disabled=!input.value.trim();send.disabled=!input.value.trim()||!inPlay.length||rolling;});
+input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();run();}});send.addEventListener("click",run);
 
-  rolling = true;
-  const rollBtn = $("roll");
-  rollBtn.classList.add("rolling");
-  rollBtn.disabled = pickBtn.disabled = $("allFable").disabled = send.disabled = true;
+async function init(){dot.classList.remove("live");status.textContent="connecting…";
+  try{const res=await fetch("/api/models",{headers:keyHeaders()}),data=await res.json();if(data.need_key){status.textContent="add Merge key to run →";openKeyPanel();return;}if(data.error)throw new Error(data.error);
+    CATALOG=data.models||[];dot.classList.add("live");const available=Object.keys(FAMILY).filter(k=>catalogModel(k)).length;status.textContent=`${available}/3 GPT-5.6 models live`;
+  }catch(err){status.textContent="offline — "+err.message;}}
 
-  // build one mini wheel per slot inside the roulette overlay
-  const overlay = $("rollOverlay"), reelRow = $("reelRow");
-  reelRow.innerHTML = "";
-  const wheels = result.map(() => {
-    const w = document.createElement("div");
-    w.className = "rwheel spinning";
-    w.innerHTML = `<div class="rwin"><span>🎲</span></div><div class="rname">…</div>`;
-    reelRow.appendChild(w);
-    return w;
-  });
-  overlay.hidden = false;
-
-  let skip = false;
-  const onSkip = () => { skip = true; };
-  overlay.addEventListener("click", onSkip);
-
-  const lockWheel = (i) => {
-    const w = wheels[i];
-    w.classList.remove("spinning");
-    w.classList.add("locked");
-    w.querySelector(".rwin span").textContent = glyphFor(result[i].id);
-    const nameEl = w.querySelector(".rname");
-    nameEl.textContent = result[i].name;
-    nameEl.title = result[i].id;
-  };
-
-  let tick = 0;
-  const spin = setInterval(() => {
-    tick++;
-    rollBtn.textContent = `${DICE[tick % 6]} rolling…`;
-    wheels.forEach(w => {
-      if (w.classList.contains("locked")) return;
-      const m = CATALOG[(Math.random() * CATALOG.length) | 0];
-      w.querySelector(".rwin span").textContent = glyphFor(m.id);
-      w.querySelector(".rname").textContent = m.name;
-    });
-    if (tick % 2 === 0) blip(1900 + Math.random() * 300, 0.02, "square", 0.012);
-  }, 80);
-
-  await sleep(700);                    // let the wheels blur past for a beat
-  for (let i = 0; i < wheels.length; i++) {
-    if (skip) break;
-    lockWheel(i);
-    blip(420 + i * 90, 0.1);           // rising pitch as each wheel lands
-    if (i === wheels.length - 1) {
-      sparkleBurst(wheels[i]);
-      setTimeout(() => { blip(660, 0.12); }, 80);   // little ta-da
-      setTimeout(() => { blip(880, 0.16); }, 170);
-    }
-    await sleep(360);
-  }
-  clearInterval(spin);
-  wheels.forEach((_, i) => lockWheel(i));   // skip (or stragglers): reveal everything
-
-  await sleep(skip ? 250 : 650);       // admire the glow, then return to the arena
-  overlay.hidden = true;
-  overlay.removeEventListener("click", onSkip);
-
-  inPlay = result;
-  renderChips();
-  if (!picker.hidden) renderPickList();
-  rollBtn.classList.remove("rolling");
-  rollBtn.textContent = "↻ roll";
-  rollBtn.disabled = pickBtn.disabled = $("allFable").disabled = false;
-  send.disabled = !input.value.trim();
-  rolling = false;
-}
-
-/* ---- model picker ---- */
-const MAX_IN_PLAY = 8;
-
-function renderPickList() {
-  const q = pickSearch.value.trim().toLowerCase();
-  const selected = new Set(inPlay.map(m => m.id));
-  const rows = CATALOG.filter(m =>
-    !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
-  pickList.innerHTML = "";
-  rows.forEach(m => {
-    const row = document.createElement("div");
-    row.className = "mrow" + (selected.has(m.id) ? " on" : "");
-    const check = document.createElement("span");
-    check.className = "check";
-    check.textContent = selected.has(m.id) ? "✓" : "";
-    const name = document.createElement("span");
-    name.className = "mname"; name.textContent = m.name;
-    const id = document.createElement("span");
-    id.className = "mid"; id.textContent = m.id;
-    const price = document.createElement("span");
-    price.className = "mprice";
-    if (m.price) price.textContent = `$${m.price.in}/$${m.price.out} per M`;
-    row.append(check, name, id, price);
-    row.addEventListener("click", () => {
-      if (selected.has(m.id)) {
-        inPlay = inPlay.filter(p => p.id !== m.id);
-      } else if (inPlay.length < MAX_IN_PLAY) {
-        inPlay.push(m);
-      } else {
-        status.textContent = `max ${MAX_IN_PLAY} models in play`;
-        return;
-      }
-      renderChips();
-      renderPickList();
-    });
-    pickList.appendChild(row);
-  });
-  if (!rows.length) {
-    const none = document.createElement("div");
-    none.className = "none";
-    none.textContent = "no models match";
-    pickList.appendChild(none);
-  }
-}
-
-pickBtn.addEventListener("click", () => {
-  const open = picker.hidden;
-  hidePanels();
-  if (open) {
-    picker.hidden = false;
-    renderPickList();
-    pickSearch.focus();
-  }
-});
-$("pickClose").addEventListener("click", () => { picker.hidden = true; });
-pickSearch.addEventListener("input", renderPickList);
-
-function autosize() {
-  input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 220) + "px";
-}
-
-function cardFor(m, idx) {
-  const color = slotColor(idx);
-  const card = document.createElement("div");
-  card.className = "card";
-  card.style.animationDelay = (idx * 60) + "ms";
-  card.style.borderTop = `2px solid ${color}`;
-  card.innerHTML = `
-    <div class="card-head">
-      <span class="name" style="color:${color}">#${idx + 1} · ${m.name}</span>
-      <span class="id">${m.id}</span>
-      <span class="grow"></span>
-      <button class="up" disabled>👍 like</button>
-      <button class="copy" disabled>copy</button>
-    </div>
-    <div class="card-body loading"><span class="blk"></span> thinking…</div>
-    <div class="card-meta"></div>`;
-  return card;
-}
-
-function attachUp(btn, model) {
-  let on = false;
-  btn.addEventListener("click", () => {
-    on = !on;
-    btn.classList.toggle("on", on);
-    btn.textContent = on ? "👍 liked" : "👍 like";
-    addVote(model.id, model.name, on ? 1 : -1);
-  });
-}
-
-function attachCopy(btn, getText) {
-  btn.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(getText());
-      btn.textContent = "copied ✓";
-      btn.classList.add("done");
-      setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("done"); }, 1400);
-    } catch { btn.textContent = "press ⌘C"; }
-  });
-}
-
-async function streamOne(m, messages, body) {
-  const res = await fetch("/api/chat/stream", {
-    method: "POST",
-    headers: keyHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ model: m.id, messages }),
-  });
-
-  if (!res.ok || !res.body) {
-    const data = await res.json().catch(() => ({}));
-    if (data.need_key) openKeyPanel();
-    throw new Error(data.error || `HTTP ${res.status}`);
-  }
-
-  // Read the SSE stream: {text} snapshots, then {done, usage, cost}.
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "", out = "", usage = {}, cost = null;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const chunk = buf.slice(0, i);
-      buf = buf.slice(i + 2);
-      for (const line of chunk.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        const data = JSON.parse(line.slice(6));
-        if (data.error) { if (data.need_key) openKeyPanel(); throw new Error(data.error); }
-        if (typeof data.text === "string") {
-          out = data.text;
-          body.classList.remove("loading");
-          body.textContent = out;
-          body.scrollTop = body.scrollHeight;   // follow the newest tokens
-        }
-        if (data.done) { usage = data.usage || {}; cost = data.cost; }
-      }
-    }
-  }
-  return { out: out.trim() || "(no response)", usage, cost };
-}
-
-async function run() {
-  const text = input.value.trim();
-  if (!text || !inPlay.length) return;
-
-  empty.style.display = "none";
-  grid.innerHTML = "";
-  send.disabled = true;
-
-  const messages = [{ role: "system", content: SYSTEM }, { role: "user", content: text }];
-
-  const runs = inPlay.map((m, idx) => {
-    const card = cardFor(m, idx);
-    grid.appendChild(card);
-    const body = card.querySelector(".card-body");
-    const copy = card.querySelector(".copy");
-    const up = card.querySelector(".up");
-    const meta = card.querySelector(".card-meta");
-
-    return streamOne(m, messages, body)
-      .then(({ out, usage, cost }) => {
-        body.textContent = out;
-        body.classList.remove("loading");
-        copy.disabled = false;
-        up.disabled = false;
-        attachCopy(copy, () => out);
-        attachUp(up, m);
-        const priced = typeof cost === "number"
-          ? `<span class="price">$${cost.toFixed(5)}</span>` : "";
-        meta.innerHTML = `${usage.input_tokens ?? "?"} in · ${usage.output_tokens ?? "?"} out${priced}`;
-        addCost(cost);
-      })
-      .catch(err => {
-        body.textContent = "⚠ " + err.message;
-        body.classList.remove("loading");
-        body.classList.add("err");
-      });
-  });
-
-  Promise.allSettled(runs).then(() => { send.disabled = false; });
-}
-
-input.addEventListener("input", () => { autosize(); send.disabled = save.disabled = !input.value.trim(); });
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
-});
-send.addEventListener("click", run);
-$("roll").addEventListener("click", () => roll(true));
-
-const FABLE_ID = "anthropic/claude-fable-5";
-$("allFable").addEventListener("click", () => {
-  const f = CATALOG.find(m => m.id === FABLE_ID);
-  if (!f) { status.textContent = "Fable 5 not in catalog — restart the server"; return; }
-  inPlay = Array.from({ length: 6 }, () => f);   // same model six times -> six variations
-  renderChips();
-});
-
-async function init() {
-  dot.classList.remove("live");
-  status.textContent = "connecting…";
-  try {
-    const res = await fetch("/api/models", { headers: keyHeaders() });
-    const data = await res.json();
-    if (data.need_key) {
-      status.textContent = "add your Merge API key to start →";
-      openKeyPanel();
-      return;
-    }
-    if (data.error) throw new Error(data.error);
-    CATALOG = data.models || [];
-    dot.classList.add("live");
-    status.textContent = CATALOG.length + " models live";
-    roll();
-  } catch (err) {
-    status.textContent = "offline — " + err.message;
-  }
-}
-
-refreshKeyBtn();
-init();
+resetBoard(true);refreshKeyBtn();init();
 </script>
 </body>
 </html>

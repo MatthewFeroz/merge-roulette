@@ -13,6 +13,7 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional, Tuple
 
 import httpx
 
@@ -23,6 +24,8 @@ WEB_DIR = Path(__file__).parent / "web"
 PORT = int(os.getenv("PORT", os.getenv("MERGE_WEB_PORT", "8000")))
 HOST = os.getenv("MERGE_WEB_HOST", "0.0.0.0" if os.getenv("PORT") else "127.0.0.1")
 DEFAULT_MODEL = os.getenv("MERGE_MODEL", "openai/gpt-4o")
+VALID_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}
+VALID_REASONING_MODES = {"pro"}
 
 NO_KEY_MSG = (
     "No Merge API key. Click the \U0001f511 key button and paste your key "
@@ -112,7 +115,24 @@ def cost_for(model: str, usage: dict, api_key: str = ""):
     )
 
 
-def gateway_payload(messages: list, model: str, stream: bool = False) -> dict:
+def request_options(payload: dict) -> Tuple[Optional[str], Optional[str]]:
+    """Validate optional slot-selected Responses API reasoning controls."""
+    effort = payload.get("effort") or None
+    mode = payload.get("mode") or None
+    if effort not in VALID_REASONING_EFFORTS | {None}:
+        raise ValueError(f"Unsupported reasoning effort: {effort}")
+    if mode not in VALID_REASONING_MODES | {None}:
+        raise ValueError(f"Unsupported reasoning mode: {mode}")
+    return effort, mode
+
+
+def gateway_payload(
+    messages: list,
+    model: str,
+    stream: bool = False,
+    reasoning_effort: Optional[str] = None,
+    reasoning_mode: Optional[str] = None,
+) -> dict:
     payload = {
         "model": model,
         "input": [
@@ -122,12 +142,32 @@ def gateway_payload(messages: list, model: str, stream: bool = False) -> dict:
     }
     if stream:
         payload["stream"] = True
+    if reasoning_effort or reasoning_mode:
+        payload["reasoning"] = {}
+        if reasoning_effort:
+            payload["reasoning"]["effort"] = reasoning_effort
+        if reasoning_mode:
+            payload["reasoning"]["mode"] = reasoning_mode
     return payload
 
 
-def complete(messages: list, model: str, api_key: str = ""):
+def complete(
+    messages: list,
+    model: str,
+    api_key: str = "",
+    reasoning_effort: Optional[str] = None,
+    reasoning_mode: Optional[str] = None,
+):
     """Post one turn to the gateway; return (text, usage dict)."""
-    resp = client(api_key).post("/responses", json=gateway_payload(messages, model))
+    resp = client(api_key).post(
+        "/responses",
+        json=gateway_payload(
+            messages,
+            model,
+            reasoning_effort=reasoning_effort,
+            reasoning_mode=reasoning_mode,
+        ),
+    )
     resp.raise_for_status()
     data = resp.json()
     return (extract_text(data) or str(data)), (data.get("usage") or {})
@@ -194,6 +234,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = self._read_json()
             model = payload.get("model") or DEFAULT_MODEL
             messages = payload.get("messages") or []
+            effort, mode = request_options(payload)
             key = self._api_key()
             c = client(key)
         except PermissionError as exc:
@@ -209,7 +250,15 @@ class Handler(BaseHTTPRequestHandler):
         last, usage = "", {}
         try:
             with c.stream(
-                "POST", "/responses", json=gateway_payload(messages, model, stream=True)
+                "POST",
+                "/responses",
+                json=gateway_payload(
+                    messages,
+                    model,
+                    stream=True,
+                    reasoning_effort=effort,
+                    reasoning_mode=mode,
+                ),
             ) as resp:
                 if resp.status_code >= 400:
                     detail = resp.read().decode("utf-8", "replace")[:300]
@@ -261,8 +310,9 @@ class Handler(BaseHTTPRequestHandler):
             payload = self._read_json()
             model = payload.get("model") or DEFAULT_MODEL
             messages = payload.get("messages") or []
+            effort, mode = request_options(payload)
             key = self._api_key()
-            text, usage = complete(messages, model, key)
+            text, usage = complete(messages, model, key, effort, mode)
             cost = cost_for(model, usage, key)
             return self._send(
                 200,
