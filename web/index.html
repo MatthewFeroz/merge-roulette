@@ -129,9 +129,10 @@
   .payline { position:absolute; z-index:2; left:0; right:0; top:50%; height:2px; transform:translateY(-1px); pointer-events:none;
              background:linear-gradient(90deg,transparent,#d24f43 8%,#ff796d 50%,#d24f43 92%,transparent);
              box-shadow:0 0 7px rgba(255,88,73,.65); opacity:.7; }
-  .slot-meter { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; padding:11px 18px;
+  .slot-meter { position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; padding:11px 18px;
                 border:1px solid var(--border-2); border-radius:99px; background:#0b0b0e; color:#d6d6de; font-size:14px;
                 font-weight:700; letter-spacing:1.6px; text-transform:uppercase; }
+  .slot-meter span:nth-child(2) { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); white-space:nowrap; }
   .slot-meter span:last-child { color:var(--accent); text-shadow:0 0 14px rgba(240,168,90,.45); white-space:nowrap; }
   .slot-meter span:last-child.winflash { animation:winflash .44s steps(2,jump-none) infinite; }
   @keyframes winflash { 50% { color:#fff3c4; text-shadow:0 0 20px rgba(255,220,120,.95); } }
@@ -585,8 +586,7 @@ function winCredits(result) {
 let winRoll=0;
 function rollUpWin(result) { // casino-style roll-up: WIN ticks from 0, then settles on the model
   const id=++winRoll, el=$("spinProgress"), total=winCredits(result), dur=1000, t0=performance.now();
-  const settled=(isSolUltra(result)?"GPT-5.6 SOL ULTRA":FAMILY[result.family].name)
-    +" · "+EFFORT_LABEL[result.effort]+(result.pro?" · pro":"");
+  const settled=isSolUltra(result)?"GPT-5.6 SOL ULTRA":FAMILY[result.family].name;
   el.classList.add("winflash");
   (function tick(){
     if(id!==winRoll) return;
