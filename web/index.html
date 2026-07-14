@@ -132,7 +132,9 @@
   .slot-meter { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; padding:11px 18px;
                 border:1px solid var(--border-2); border-radius:99px; background:#0b0b0e; color:#d6d6de; font-size:14px;
                 font-weight:700; letter-spacing:1.6px; text-transform:uppercase; }
-  .slot-meter span:last-child { color:var(--accent); text-shadow:0 0 14px rgba(240,168,90,.45); }
+  .slot-meter span:last-child { color:var(--accent); text-shadow:0 0 14px rgba(240,168,90,.45); white-space:nowrap; }
+  .slot-meter span:last-child.winflash { animation:winflash .44s steps(2,jump-none) infinite; }
+  @keyframes winflash { 50% { color:#fff3c4; text-shadow:0 0 20px rgba(255,220,120,.95); } }
   .slot-deck { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-around; height:44px;
                margin:12px 2px 1px; border:1px solid var(--border); border-radius:10px 10px 16px 16px;
                background:#101013; box-shadow:inset 0 3px 10px rgba(0,0,0,.65),inset 0 -1px rgba(255,255,255,.04); }
@@ -295,7 +297,7 @@
     .keyrow { align-items:stretch; flex-direction:column; }
   }
   @media (prefers-reduced-motion:reduce) {
-    .cell.spinning,.cell.stopped,.slot-cabinet.pull-shake,.slot-cabinet.win-kick,.slot-cabinet.big-win,.slot-cabinet.sol-ultra,.slot-marquee span { animation:none !important; }
+    .cell.spinning,.cell.stopped,.slot-cabinet.pull-shake,.slot-cabinet.win-kick,.slot-cabinet.big-win,.slot-cabinet.sol-ultra,.slot-marquee span,.slot-meter span:last-child.winflash { animation:none !important; }
     .lever-knob { transition:none !important; }
     .win-particle,.slot-marquee::after,.spark { display:none; }
   }
@@ -485,7 +487,7 @@ function resetBoard(clearSelection=true) {
   outcome.removeAttribute("style");
   reels.forEach(r=>r.classList.remove("spinning"));
   cabinet.classList.remove("win-kick","big-win","sol-ultra"); particles.innerHTML="";
-  $("spinProgress").textContent="ready";
+  winRoll++; $("spinProgress").classList.remove("winflash"); $("spinProgress").textContent="ready";
   outcome.className="outcome waiting"; outcome.textContent="Pull the lever to generate a model configuration.";
   if(clearSelection){ inPlay=[]; renderChips(); }
   send.disabled=!input.value.trim() || !inPlay.length;
@@ -574,6 +576,30 @@ function isSolUltra(result) {
   return result.family==="sol" && (result.effort==="xhigh" || result.effort==="max" || result.pro);
 }
 
+function winCredits(result) {
+  if(result.pattern==="nine-symbol jackpot") return 777777;
+  if(result.pro) return 100000;
+  return {none:25,low:100,medium:500,high:1000,xhigh:5000,max:25000}[result.effort]||25;
+}
+
+let winRoll=0;
+function rollUpWin(result) { // casino-style roll-up: WIN ticks from 0, then settles on the model
+  const id=++winRoll, el=$("spinProgress"), total=winCredits(result), dur=1000, t0=performance.now();
+  const settled=(isSolUltra(result)?"GPT-5.6 SOL ULTRA":FAMILY[result.family].name)
+    +" · "+EFFORT_LABEL[result.effort]+(result.pro?" · pro":"");
+  el.classList.add("winflash");
+  (function tick(){
+    if(id!==winRoll) return;
+    const p=Math.min(1,(performance.now()-t0)/dur), eased=1-Math.pow(1-p,3);
+    el.textContent="win "+Math.round(total*eased).toLocaleString();
+    if(p<1){ if(Math.random()<.55)blip(850+750*p,.02,"square",.018); requestAnimationFrame(tick); }
+    else {
+      blip(1250,.14,"triangle",.05);
+      setTimeout(()=>{ if(id!==winRoll)return; el.classList.remove("winflash"); el.textContent=settled; },700);
+    }
+  })();
+}
+
 function celebrate(result) {
   const family=FAMILY[result.family], ultra=isSolUltra(result);
   const big=ultra || result.pro || ["high","xhigh","max"].includes(result.effort);
@@ -633,7 +659,7 @@ async function spinSlots() {
   const family=FAMILY[result.family], model=resolvedModel(result.family);
   inPlay=[{...model,family:result.family,color:family.color,effort:result.effort,mode:result.pro?"pro":null,pattern:result.pattern}];
   renderChips(); renderOutcome(result); celebrate(result); blip(620,.12); setTimeout(()=>blip(result.pro?980:820,.17),100);
-  $("spinProgress").textContent=isSolUltra(result)?"sol ultra":"winner"; leverReturn(); lever.disabled=false;
+  rollUpWin(result); leverReturn(); lever.disabled=false;
   send.disabled=!input.value.trim(); rolling=false;
 }
 
