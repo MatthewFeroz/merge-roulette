@@ -577,25 +577,30 @@ function isSolUltra(result) {
   return result.family==="sol" && (result.effort==="xhigh" || result.effort==="max" || result.pro);
 }
 
-function winCredits(result) {
-  if(result.pattern==="nine-symbol jackpot") return 777777;
-  if(result.pro) return 100000;
-  return {none:25,low:100,medium:500,high:1000,xhigh:5000,max:25000}[result.effort]||25;
-}
-
 let winRoll=0;
-function rollUpWin(result) { // casino-style roll-up: WIN ticks from 0, then settles on the model
-  const id=++winRoll, el=$("spinProgress"), total=winCredits(result), dur=1000, t0=performance.now();
+const FAMILY_ORDER=["luna","terra","sol"], EFFORT_ORDER=["none","low","medium","high","xhigh","max"];
+function strengthLadder(result) { // every config from weakest up to the landed one
+  const fi=FAMILY_ORDER.indexOf(result.family), ei=EFFORT_ORDER.indexOf(result.effort);
+  const top=result.pro ? EFFORT_ORDER.length*3 : ei*3+fi+1;
+  return Array.from({length:top},(_,i)=>
+    FAMILY_ORDER[i%3].toUpperCase()+" · "+EFFORT_LABEL[EFFORT_ORDER[(i/3)|0]]);
+}
+function rollUpWin(result) { // ticker climbs the model hierarchy and lands on the winner
+  const id=++winRoll, el=$("spinProgress");
   const settled=isSolUltra(result)?"GPT-5.6 SOL ULTRA":FAMILY[result.family].name;
+  const rungs=strengthLadder(result), n=rungs.length;
   el.classList.add("winflash");
-  (function tick(){
+  let i=0;
+  (function step(){
     if(id!==winRoll) return;
-    const p=Math.min(1,(performance.now()-t0)/dur), eased=1-Math.pow(1-p,3);
-    el.textContent="win "+Math.round(total*eased).toLocaleString();
-    if(p<1){ if(Math.random()<.55)blip(850+750*p,.02,"square",.018); requestAnimationFrame(tick); }
-    else {
-      blip(1250,.14,"triangle",.05);
-      setTimeout(()=>{ if(id!==winRoll)return; el.classList.remove("winflash"); el.textContent=settled; },700);
+    if(i<n){
+      el.textContent=rungs[i];
+      blip(500+900*(i/n),.03,"square",.022);
+      const wait=45+Math.pow(i/n,2.2)*280; i++;
+      setTimeout(step,wait);
+    } else {
+      el.textContent=settled; blip(1250,.16,"triangle",.055);
+      setTimeout(()=>{ if(id===winRoll)el.classList.remove("winflash"); },700);
     }
   })();
 }
